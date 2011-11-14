@@ -35,7 +35,8 @@ const int warmup = 2;
 
 enum scheme_t { CPU_ONLY, GPU_ONLY, CPU_GPU_STATIC, CPU_GPU_DYNAMIC };
 
-enum scheme_t scheme = GPU_ONLY;
+enum scheme_t scheme = CPU_ONLY;
+float ratio = 0.01;
 
 cl_program createProgramFromSource(const char* filename, const cl_context context)
 {
@@ -160,13 +161,34 @@ float runKernel(cl_mem a, cl_mem b, cl_mem* c, unsigned long length)
 			clFinish(commands_cpu);
 			clFinish(commands_gpu);
 		}
-		if(scheme == GPU_ONLY)
+		else if(scheme == GPU_ONLY)
 		{
 			global_size_gpu = (length / local_size_gpu) * local_size_gpu + (length % local_size_gpu == 0 ? 0 : local_size_gpu);
 			err = clEnqueueNDRangeKernel(commands_gpu, kernel_compute, 1, NULL, &global_size_gpu, &local_size_gpu, 0, NULL, NULL);
 			CHKERR(err, "Errors setting kernel arguments");
 			clFinish(commands_cpu);
 			clFinish(commands_gpu);
+		}
+		else if(scheme == CPU_GPU_STATIC)
+		{
+			size_t gpu_length = length * ratio;
+			global_size_gpu = (gpu_length / local_size_gpu) * local_size_gpu + (gpu_length % local_size_gpu == 0 ? 0 : local_size_gpu);
+			err = clEnqueueNDRangeKernel(commands_gpu, kernel_compute, 1, NULL, &global_size_gpu, &local_size_gpu, 0, NULL, NULL);
+			CHKERR(err, "Errors setting kernel arguments2");
+			
+			size_t cpu_length = length - global_size_gpu;
+			global_size_cpu = (cpu_length / local_size_cpu) * local_size_cpu + (cpu_length % local_size_cpu == 0 ? 0 : local_size_cpu);
+			if(global_size_cpu != 0)
+			{
+				err = clEnqueueNDRangeKernel(commands_cpu, kernel_compute, 1, &global_size_gpu, &global_size_cpu, &local_size_cpu, 0, NULL, NULL);
+				CHKERR(err, "Errors setting kernel arguments1");
+			}
+			clFinish(commands_cpu);
+			clFinish(commands_gpu);
+		}
+		else if(scheme == CPU_GPU_DYNAMIC)
+		{
+		
 		}
 	TIMER_END;
 	executionTime = MILLISECONDS;
@@ -247,6 +269,13 @@ int main(int argc, char** argv)
 	unsigned char* nums_check;
 	unsigned long length = atoi(argv[1]);
 	unsigned int iters = atoi(argv[2]);
+	switch(atoi(argv[3]))
+	{
+		case 0: scheme = CPU_ONLY; break;
+		case 1: scheme = GPU_ONLY; break;
+		case 2: scheme = CPU_GPU_STATIC; break;
+		case 3: scheme = CPU_GPU_DYNAMIC; break;
+	}
 	nums_1 = malloc(sizeof(*nums_1) *  length);
 	nums_2 = malloc(sizeof(*nums_2) *  length);
 	nums_3 = malloc(sizeof(*nums_3) *  length);
