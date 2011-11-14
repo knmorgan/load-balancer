@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <pthread.h>
 
 #ifdef __APPLE__
 #include <OpenCL/opencl.h>
@@ -131,7 +132,61 @@ void setupGPU()
 	CHKERR(err, "Failed to create a compute kernel!");
 }
 
-float runKernel(cl_mem a, cl_mem b, cl_mem* c, unsigned long length)
+long long t_length;
+size_t t_offset;
+pthread_mutex_t mutex;
+
+
+struct dynamic_args
+{
+	cl_command_queue queue;
+	cl_device_id dev_id;
+	cl_kernel kernel;
+	cl_mem* c;
+};
+
+void* dynamic_scheduler(void* args)
+{
+	struct dynamic_args* da = (struct dynamic_args*)args;
+	cl_command_queue queue = da->queue;
+	cl_device_id dev_id = da->dev_id;
+	cl_kernel kernel = da->kernel;
+	cl_mem* c = da->c;
+	size_t local_size;
+	cl_uint compute_units;
+	clGetDeviceInfo(dev_id, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &local_size, NULL);
+	clGetDeviceInfo(dev_id, CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(cl_uint), &compute_units, NULL);
+
+	int err;
+	err = clSetKernelArg(kernel, 2, sizeof(cl_mem), c);
+	int work = compute_units * local_size;
+	size_t offset = 0;
+	while(1)
+	{
+		pthread_mutex_lock(&mutex);		
+		if(t_length <= 0)
+		{
+			pthread_mutex_unlock(&mutex);
+			return NULL;
+		}
+		if(t_length < work)
+			work = t_length;
+		offset = t_offset;
+		size_t global_size = (work / local_size) * local_size + (work % local_size == 0 ? 0 : local_size);
+		t_length -= global_size;
+		t_offset += global_size;
+		//printf("%d, %d\n", offset, t_length);
+		if(global_size != 0)
+		{
+			err = clEnqueueNDRangeKernel(queue, kernel, 1, &offset, &global_size, &local_size, 0, NULL, NULL);
+			CHKERR(err, "Errors setting kernel arguments1");
+		}
+		clFinish(queue);
+		pthread_mutex_unlock(&mutex);	
+	}
+}
+
+float runKernel(cl_mem a, cl_mem b, cl_mem* c_cpu, cl_mem* c_gpu, unsigned long length)
 {
 	int err;
 	size_t local_size_cpu;
@@ -142,7 +197,6 @@ float runKernel(cl_mem a, cl_mem b, cl_mem* c, unsigned long length)
 
 	err = clSetKernelArg(kernel_compute, 0, sizeof(cl_mem), &a);
 	err = clSetKernelArg(kernel_compute, 1, sizeof(cl_mem), &b);
-	err = clSetKernelArg(kernel_compute, 2, sizeof(cl_mem), c);
 	err = clSetKernelArg(kernel_compute, 3, sizeof(unsigned long), &length);
 	CHKERR(err, "Errors setting kernel arguments");
 
@@ -155,6 +209,7 @@ float runKernel(cl_mem a, cl_mem b, cl_mem* c, unsigned long length)
 	TIMER_START;
 		if(scheme == CPU_ONLY)
 		{
+			err = clSetKernelArg(kernel_compute, 2, sizeof(cl_mem), c_cpu);
 			global_size_cpu = (length / local_size_cpu) * local_size_cpu + (length % local_size_cpu == 0 ? 0 : local_size_cpu);
 			err = clEnqueueNDRangeKernel(commands_cpu, kernel_compute, 1, NULL, &global_size_cpu, &local_size_cpu, 0, NULL, NULL);
 			CHKERR(err, "Errors setting kernel arguments");
@@ -163,6 +218,7 @@ float runKernel(cl_mem a, cl_mem b, cl_mem* c, unsigned long length)
 		}
 		else if(scheme == GPU_ONLY)
 		{
+			err = clSetKernelArg(kernel_compute, 2, sizeof(cl_mem), c_gpu);
 			global_size_gpu = (length / local_size_gpu) * local_size_gpu + (length % local_size_gpu == 0 ? 0 : local_size_gpu);
 			err = clEnqueueNDRangeKernel(commands_gpu, kernel_compute, 1, NULL, &global_size_gpu, &local_size_gpu, 0, NULL, NULL);
 			CHKERR(err, "Errors setting kernel arguments");
@@ -171,11 +227,13 @@ float runKernel(cl_mem a, cl_mem b, cl_mem* c, unsigned long length)
 		}
 		else if(scheme == CPU_GPU_STATIC)
 		{
+			err = clSetKernelArg(kernel_compute, 2, sizeof(cl_mem), c_gpu);
 			size_t gpu_length = length * ratio;
 			global_size_gpu = (gpu_length / local_size_gpu) * local_size_gpu + (gpu_length % local_size_gpu == 0 ? 0 : local_size_gpu);
 			err = clEnqueueNDRangeKernel(commands_gpu, kernel_compute, 1, NULL, &global_size_gpu, &local_size_gpu, 0, NULL, NULL);
 			CHKERR(err, "Errors setting kernel arguments2");
 			
+			err = clSetKernelArg(kernel_compute, 2, sizeof(cl_mem), c_cpu);
 			size_t cpu_length = length - global_size_gpu;
 			global_size_cpu = (cpu_length / local_size_cpu) * local_size_cpu + (cpu_length % local_size_cpu == 0 ? 0 : local_size_cpu);
 			if(global_size_cpu != 0)
@@ -188,7 +246,30 @@ float runKernel(cl_mem a, cl_mem b, cl_mem* c, unsigned long length)
 		}
 		else if(scheme == CPU_GPU_DYNAMIC)
 		{
-		
+			pthread_t threads[2];
+
+			struct dynamic_args cpu;
+			struct dynamic_args gpu;
+			int rc;
+			
+			pthread_mutex_init(&mutex, NULL);
+			t_length = length;
+			t_offset = 0;
+	
+			cpu.queue = commands_cpu;
+			cpu.dev_id = device_id_cpu;
+			cpu.kernel = kernel_compute;		
+			cpu.c =  c_cpu;
+			rc = pthread_create(&threads[0], NULL, dynamic_scheduler, (void*)&cpu);
+			
+			gpu.queue = commands_gpu;
+			gpu.dev_id = device_id_gpu;
+			gpu.kernel = kernel_compute;
+			gpu.c = c_gpu;
+			rc = pthread_create(&threads[1], NULL, dynamic_scheduler, (void*)&gpu);
+			void* status;
+			rc = pthread_join(threads[0], &status); 
+			rc = pthread_join(threads[1], &status); 
 		}
 	TIMER_END;
 	executionTime = MILLISECONDS;
@@ -201,36 +282,51 @@ void vadd_default(unsigned char* a, unsigned char* b, unsigned char* c, unsigned
 	int err;
 	cl_mem dev_a;
 	cl_mem dev_b;
-	cl_mem dev_c;
+	cl_mem dev_c_cpu;
+	cl_mem dev_c_gpu;
+
+	unsigned char* temp = calloc(1, sizeof(*temp) * length);
 
 	dev_a = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(*a) * length, NULL, &err);
 	dev_b = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(*b) * length, NULL, &err);
-	dev_c = clCreateBuffer(context, CL_MEM_WRITE_ONLY,sizeof(*c) * length, NULL, &err);
+	dev_c_cpu = clCreateBuffer(context, CL_MEM_WRITE_ONLY,sizeof(*c) * length, NULL, &err);
+	dev_c_gpu = clCreateBuffer(context, CL_MEM_WRITE_ONLY,sizeof(*c) * length, NULL, &err);
 	CHKERR(err, "Errors creating buffers");
 
 	clFinish(commands_cpu);
 	TIMER_START;
 	err = clEnqueueWriteBuffer(commands_cpu, dev_a, CL_TRUE, 0, sizeof(*a) * length, a, 0, NULL, NULL);
 	err = clEnqueueWriteBuffer(commands_cpu, dev_b, CL_TRUE, 0, sizeof(*b) * length, b, 0, NULL, NULL);
+	err = clEnqueueWriteBuffer(commands_cpu, dev_c_gpu, CL_TRUE, 0, sizeof(*c) * length, temp, 0, NULL, NULL);
+	err = clEnqueueWriteBuffer(commands_cpu, dev_c_cpu, CL_TRUE, 0, sizeof(*c) * length, temp, 0, NULL, NULL);
 	clFinish(commands_cpu);
 	TIMER_END;
 	*data_time += MILLISECONDS;
 	CHKERR(err, "Errors writing buffers");
 
-	*kernel_time += runKernel(dev_a, dev_b, &dev_c, length);
+	*kernel_time += runKernel(dev_a, dev_b, &dev_c_cpu, &dev_c_gpu, length);
 	
 	clFinish(commands_cpu);
 	TIMER_START;
-	err = clEnqueueReadBuffer(commands_cpu, dev_c, CL_TRUE, 0, sizeof(*c) * length, c, 0, NULL, NULL);
+	err = clEnqueueReadBuffer(commands_cpu, dev_c_cpu, CL_TRUE, 0, sizeof(*c) * length, c, 0, NULL, NULL);
+	err = clEnqueueReadBuffer(commands_gpu, dev_c_gpu, CL_TRUE, 0, sizeof(*c) * length, temp, 0, NULL, NULL);
+	int i;
+	for(i = 0; i < length; i++)
+	{
+		if(temp[i] != 0)
+			c[i] = temp[i];
+	}
 	clFinish(commands_cpu);
 	TIMER_END;
 	*data_time += MILLISECONDS;
 	CHKERR(err, "Errors reading buffers");
 
+	free (temp);
 	
 	clReleaseMemObject(dev_a);
 	clReleaseMemObject(dev_b);
-	clReleaseMemObject(dev_c);
+	clReleaseMemObject(dev_c_cpu);
+	clReleaseMemObject(dev_c_gpu);
 }
 
 void fillArray(unsigned char* nums, unsigned long length)
@@ -267,14 +363,25 @@ int main(int argc, char** argv)
 	unsigned char* nums_2;
 	unsigned char* nums_3;
 	unsigned char* nums_check;
+	unsigned char* scheme_name;
 	unsigned long length = atoi(argv[1]);
 	unsigned int iters = atoi(argv[2]);
 	switch(atoi(argv[3]))
 	{
-		case 0: scheme = CPU_ONLY; break;
-		case 1: scheme = GPU_ONLY; break;
-		case 2: scheme = CPU_GPU_STATIC; break;
-		case 3: scheme = CPU_GPU_DYNAMIC; break;
+		case 0: scheme = CPU_ONLY;
+			scheme_name = "c";
+			break;
+		case 1: scheme = GPU_ONLY;
+			scheme_name = "g";
+			break;
+		case 2: scheme = CPU_GPU_STATIC;
+			scheme_name = "cg-s";
+			if(argc > 4)
+				ratio = atof(argv[4]);
+			break;
+		case 3: scheme = CPU_GPU_DYNAMIC;
+			scheme_name = "cg-d";
+			break;
 	}
 	nums_1 = malloc(sizeof(*nums_1) *  length);
 	nums_2 = malloc(sizeof(*nums_2) *  length);
@@ -302,7 +409,7 @@ int main(int argc, char** argv)
 		verify_answer(nums_3, nums_check, length);	
 		if(i >= warmup)
 		{
-			fprintf(stdout,"%d\tVectorAdd\tDefault\t%lu\t%f\t%f\n", i - warmup, length, data_time, exec_time);
+			fprintf(stdout,"%d\tVectorAdd\t%s\t%f\t%lu\t%f\t%f\n", i - warmup, scheme_name, ratio, length, data_time, exec_time);
 		}
 		data_time = 0;
 		exec_time = 0;
