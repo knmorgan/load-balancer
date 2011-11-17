@@ -27,11 +27,13 @@ const char *KernelSourceFile = "VectorAdd.cl";
 cl_platform_id platform_id;
 cl_device_id device_id_gpu;
 cl_device_id device_id_cpu;
-cl_context context;
+cl_context context_cpu;
+cl_context context_gpu;
 cl_command_queue commands_cpu;
 cl_command_queue commands_gpu;
 cl_program program;
-cl_kernel kernel_compute;
+cl_kernel kernel_compute_cpu;
+cl_kernel kernel_compute_gpu;
 
 const int warmup = 2;
 
@@ -65,6 +67,34 @@ cl_program createProgramFromSource(const char* filename, const cl_context contex
 	free(kernelSource);
 	
 	return program;
+}
+
+cl_kernel create_kernel(const char* filename, const char* kernel, const cl_context context, const cl_device_id device)
+{
+	cl_kernel kernel_compute;
+	// Create a command queue
+	cl_program program = createProgramFromSource(filename, context);
+
+	// Build the program executable
+	int err = clBuildProgram(program, 1, &device, NULL, NULL, NULL);
+	if (err == CL_BUILD_PROGRAM_FAILURE)
+	{
+		char *log;
+		size_t logLen;
+		err = clGetProgramBuildInfo(program, device_id_gpu, CL_PROGRAM_BUILD_LOG, 0, NULL, &logLen);
+		log = (char *) malloc(sizeof(char)*logLen);
+		err = clGetProgramBuildInfo(program, device_id_gpu, CL_PROGRAM_BUILD_LOG, logLen, (void *) log, NULL);
+		fprintf(stdout, "CL Error %d: Failed to build program! Log:\n%s", err, log);
+		free(log);
+		exit(1);
+	}
+	CHKERR(err, "Failed to build program!");
+
+	// Create the compute kernel in the program we wish to run
+	kernel_compute = clCreateKernel(program, kernel, &err);
+	CHKERR(err, "Failed to create a compute kernel!");
+	
+	return kernel_compute;
 }
 
 void setupGPU()
@@ -101,39 +131,24 @@ void setupGPU()
 	free(platform_ids);	
 
 
-	// Create a compute context
-	cl_device_id devices[2];
-	devices[0] = device_id_gpu;
-	devices[1] = device_id_cpu;
-	context = clCreateContext(NULL, 2, devices, NULL, NULL, &err);
-	CHKERR(err, "Failed to create a compute context!");
-
-	// Create a command queue
-	commands_cpu = clCreateCommandQueue(context, device_id_cpu, 0, &err);
-	CHKERR(err, "Failed to create a command queue!");
-	commands_gpu = clCreateCommandQueue(context, device_id_gpu, 0, &err);
-	CHKERR(err, "Failed to create a command queue!");
-
-	program = createProgramFromSource(KernelSourceFile, context);
-
-	// Build the program executable
-	err = clBuildProgram(program, 2, devices, NULL, NULL, NULL);
-	if (err == CL_BUILD_PROGRAM_FAILURE)
+	if(scheme != GPU_ONLY)
 	{
-		char *log;
-		size_t logLen;
-		err = clGetProgramBuildInfo(program, device_id_gpu, CL_PROGRAM_BUILD_LOG, 0, NULL, &logLen);
-		log = (char *) malloc(sizeof(char)*logLen);
-		err = clGetProgramBuildInfo(program, device_id_gpu, CL_PROGRAM_BUILD_LOG, logLen, (void *) log, NULL);
-		fprintf(stdout, "CL Error %d: Failed to build program! Log:\n%s", err, log);
-		free(log);
-		exit(1);
+		context_cpu = clCreateContext(NULL, 1, &device_id_cpu, NULL, NULL, &err);
+		CHKERR(err, "Failed to create a compute context!");
+		commands_cpu = clCreateCommandQueue(context_cpu, device_id_cpu, 0, &err);
+		CHKERR(err, "Failed to create a command queue!");
+		kernel_compute_cpu = create_kernel(KernelSourceFile, "compute", context_cpu, device_id_cpu);
 	}
-	CHKERR(err, "Failed to build program!");
 
-	// Create the compute kernel in the program we wish to run
-	kernel_compute = clCreateKernel(program, "compute", &err);
-	CHKERR(err, "Failed to create a compute kernel!");
+	if(scheme != CPU_ONLY)
+	{
+		context_gpu = clCreateContext(NULL, 1, &device_id_gpu, NULL, NULL, &err);
+		CHKERR(err, "Failed to create a compute context!");
+		commands_gpu = clCreateCommandQueue(context_gpu, device_id_gpu, 0, &err);
+		CHKERR(err, "Failed to create a command queue!");
+		kernel_compute_gpu = create_kernel(KernelSourceFile, "compute", context_gpu, device_id_gpu);
+	}
+
 }
 
 long long t_length;
@@ -199,9 +214,9 @@ float runKernel(cl_mem a, cl_mem b, cl_mem* c_cpu, cl_mem* c_gpu, unsigned long 
 	size_t global_size_gpu;
 	float executionTime;
 
-	err = clSetKernelArg(kernel_compute, 0, sizeof(cl_mem), &a);
-	err = clSetKernelArg(kernel_compute, 1, sizeof(cl_mem), &b);
-	err = clSetKernelArg(kernel_compute, 3, sizeof(unsigned long), &length);
+	err = clSetKernelArg(kernel_compute_cpu, 0, sizeof(cl_mem), &a);
+	err = clSetKernelArg(kernel_compute_cpu, 1, sizeof(cl_mem), &b);
+	err = clSetKernelArg(kernel_compute_cpu, 3, sizeof(unsigned long), &length);
 	CHKERR(err, "Errors setting kernel arguments");
 
 	clGetDeviceInfo(device_id_cpu, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &local_size_cpu, NULL);
@@ -213,36 +228,36 @@ float runKernel(cl_mem a, cl_mem b, cl_mem* c_cpu, cl_mem* c_gpu, unsigned long 
 	TIMER_START;
 		if(scheme == CPU_ONLY)
 		{
-			err = clSetKernelArg(kernel_compute, 2, sizeof(cl_mem), c_cpu);
+			err = clSetKernelArg(kernel_compute_cpu, 2, sizeof(cl_mem), c_cpu);
 			global_size_cpu = (length / local_size_cpu) * local_size_cpu + (length % local_size_cpu == 0 ? 0 : local_size_cpu);
-			err = clEnqueueNDRangeKernel(commands_cpu, kernel_compute, 1, NULL, &global_size_cpu, &local_size_cpu, 0, NULL, NULL);
+			err = clEnqueueNDRangeKernel(commands_cpu, kernel_compute_cpu, 1, NULL, &global_size_cpu, &local_size_cpu, 0, NULL, NULL);
 			CHKERR(err, "Errors setting kernel arguments");
 			clFinish(commands_cpu);
 			clFinish(commands_gpu);
 		}
 		else if(scheme == GPU_ONLY)
 		{
-			err = clSetKernelArg(kernel_compute, 2, sizeof(cl_mem), c_gpu);
+			err = clSetKernelArg(kernel_compute_cpu, 2, sizeof(cl_mem), c_gpu);
 			global_size_gpu = (length / local_size_gpu) * local_size_gpu + (length % local_size_gpu == 0 ? 0 : local_size_gpu);
-			err = clEnqueueNDRangeKernel(commands_gpu, kernel_compute, 1, NULL, &global_size_gpu, &local_size_gpu, 0, NULL, NULL);
+			err = clEnqueueNDRangeKernel(commands_gpu, kernel_compute_gpu, 1, NULL, &global_size_gpu, &local_size_gpu, 0, NULL, NULL);
 			CHKERR(err, "Errors setting kernel arguments");
 			clFinish(commands_cpu);
 			clFinish(commands_gpu);
 		}
 		else if(scheme == CPU_GPU_STATIC)
 		{
-			err = clSetKernelArg(kernel_compute, 2, sizeof(cl_mem), c_gpu);
+			err = clSetKernelArg(kernel_compute_cpu, 2, sizeof(cl_mem), c_gpu);
 			size_t gpu_length = length * ratio;
 			global_size_gpu = (gpu_length / local_size_gpu) * local_size_gpu + (gpu_length % local_size_gpu == 0 ? 0 : local_size_gpu);
-			err = clEnqueueNDRangeKernel(commands_gpu, kernel_compute, 1, NULL, &global_size_gpu, &local_size_gpu, 0, NULL, NULL);
+			err = clEnqueueNDRangeKernel(commands_gpu, kernel_compute_gpu, 1, NULL, &global_size_gpu, &local_size_gpu, 0, NULL, NULL);
 			CHKERR(err, "Errors setting kernel arguments2");
 			
-			err = clSetKernelArg(kernel_compute, 2, sizeof(cl_mem), c_cpu);
+			err = clSetKernelArg(kernel_compute_cpu, 2, sizeof(cl_mem), c_cpu);
 			size_t cpu_length = length - global_size_gpu;
 			global_size_cpu = (cpu_length / local_size_cpu) * local_size_cpu + (cpu_length % local_size_cpu == 0 ? 0 : local_size_cpu);
 			if(global_size_cpu != 0)
 			{
-				err = clEnqueueNDRangeKernel(commands_cpu, kernel_compute, 1, &global_size_gpu, &global_size_cpu, &local_size_cpu, 0, NULL, NULL);
+				err = clEnqueueNDRangeKernel(commands_cpu, kernel_compute_cpu, 1, &global_size_gpu, &global_size_cpu, &local_size_cpu, 0, NULL, NULL);
 				CHKERR(err, "Errors setting kernel arguments1");
 			}
 			clFinish(commands_cpu);
@@ -262,13 +277,13 @@ float runKernel(cl_mem a, cl_mem b, cl_mem* c_cpu, cl_mem* c_gpu, unsigned long 
 	
 			cpu.queue = commands_cpu;
 			cpu.dev_id = device_id_cpu;
-			cpu.kernel = kernel_compute;		
+			cpu.kernel = kernel_compute_cpu;		
 			cpu.c =  c_cpu;
 			rc = pthread_create(&threads[0], NULL, dynamic_scheduler, (void*)&cpu);
 			
 			gpu.queue = commands_gpu;
 			gpu.dev_id = device_id_gpu;
-			gpu.kernel = kernel_compute;
+			gpu.kernel = kernel_compute_gpu;
 			gpu.c = c_gpu;
 			rc = pthread_create(&threads[1], NULL, dynamic_scheduler, (void*)&gpu);
 			void* status;
@@ -291,10 +306,10 @@ void vadd_default(unsigned char* a, unsigned char* b, unsigned char* c, unsigned
 
 	unsigned char* temp = calloc(1, sizeof(*temp) * length);
 
-	dev_a = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(*a) * length, NULL, &err);
-	dev_b = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(*b) * length, NULL, &err);
-	dev_c_cpu = clCreateBuffer(context, CL_MEM_WRITE_ONLY,sizeof(*c) * length, NULL, &err);
-	dev_c_gpu = clCreateBuffer(context, CL_MEM_WRITE_ONLY,sizeof(*c) * length, NULL, &err);
+	dev_a = clCreateBuffer(context_cpu, CL_MEM_READ_ONLY, sizeof(*a) * length, NULL, &err);
+	dev_b = clCreateBuffer(context_cpu, CL_MEM_READ_ONLY, sizeof(*b) * length, NULL, &err);
+	dev_c_cpu = clCreateBuffer(context_gpu, CL_MEM_WRITE_ONLY,sizeof(*c) * length, NULL, &err);
+	dev_c_gpu = clCreateBuffer(context_cpu, CL_MEM_WRITE_ONLY,sizeof(*c) * length, NULL, &err);
 	CHKERR(err, "Errors creating buffers");
 
 	clFinish(commands_cpu);
