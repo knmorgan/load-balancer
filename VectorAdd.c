@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <pthread.h>
@@ -49,7 +50,10 @@ cl_program createProgramFromSource(const char* filename, const cl_context contex
 	size_t kernelLength = (size_t) ftell(kernelFile);
 	char* kernelSource = (char *) calloc(1, sizeof(char)*kernelLength+1);
 	rewind(kernelFile);
-	fread((void *) kernelSource, kernelLength, 1, kernelFile);
+	if(fread((void *) kernelSource, kernelLength, 1, kernelFile) == 0) {
+		fprintf(stderr, "Could not read source\n");
+		exit(1);
+	}
 	kernelSource[kernelLength] = 0;
 	fclose(kernelFile);
 	
@@ -66,7 +70,7 @@ cl_program createProgramFromSource(const char* filename, const cl_context contex
 void setupGPU()
 {
 	// Retrieve an OpenCL platform
-	int num_platforms = 0;
+	cl_uint num_platforms = 0;
 	int err = 0;
 	err = clGetPlatformIDs(0, NULL, &num_platforms);
 
@@ -369,19 +373,22 @@ int main(int argc, char** argv)
 	switch(atoi(argv[3]))
 	{
 		case 0: scheme = CPU_ONLY;
-			scheme_name = "c";
+			scheme_name = (unsigned char*)"c";
 			break;
 		case 1: scheme = GPU_ONLY;
-			scheme_name = "g";
+			scheme_name = (unsigned char*)"g";
 			break;
 		case 2: scheme = CPU_GPU_STATIC;
-			scheme_name = "cg-s";
+			scheme_name = (unsigned char*)"cg-s";
 			if(argc > 4)
 				ratio = atof(argv[4]);
 			break;
 		case 3: scheme = CPU_GPU_DYNAMIC;
-			scheme_name = "cg-d";
+			scheme_name = (unsigned char*)"cg-d";
 			break;
+		default:
+			fprintf(stderr, "Error: no scheme specified\n");
+			exit(1);
 	}
 	nums_1 = malloc(sizeof(*nums_1) *  length);
 	nums_2 = malloc(sizeof(*nums_2) *  length);
@@ -419,4 +426,5 @@ int main(int argc, char** argv)
 	free(nums_1);
 	free(nums_2);
 	free(nums_3);
+	return 0;
 }
