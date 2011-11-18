@@ -390,9 +390,12 @@ void test_chunk_setup(cl_context context, cl_command_queue queue, size_t size, s
 	cl_mem_flags a_flags = CL_MEM_READ_ONLY;
 	cl_mem_flags b_flags = CL_MEM_READ_ONLY;
 	cl_mem_flags c_flags = CL_MEM_WRITE_ONLY;
+	void* a_mem = NULL;
+	void* b_mem = NULL;
+	void* c_mem = NULL;
 	if(isGPU)
 	{
-		d_a = &dg_a;
+		d_a = &dg_a; 
 		d_b = &dg_b;
 		d_c = &dg_c;
 	}
@@ -401,11 +404,17 @@ void test_chunk_setup(cl_context context, cl_command_queue queue, size_t size, s
 		d_a = &dc_a;
 		d_b = &dc_b;
 		d_c = &dc_c;
+		a_flags |= CL_MEM_USE_HOST_PTR;
+		b_flags |= CL_MEM_USE_HOST_PTR;
+		c_flags |= CL_MEM_USE_HOST_PTR;
+		a_mem = h_a;
+		b_mem = h_b;
+		c_mem = h_c;
 	}
 	int err;
-	*d_a = clCreateBuffer(context, a_flags, sizeof(*h_a) * size, NULL, &err);
-	*d_b = clCreateBuffer(context, b_flags, sizeof(*h_b) * size, NULL, &err);
-	*d_c = clCreateBuffer(context, c_flags, sizeof(*h_c) * size, NULL, &err);
+	*d_a = clCreateBuffer(context, a_flags, sizeof(*h_a) * size, a_mem, &err);
+	*d_b = clCreateBuffer(context, b_flags, sizeof(*h_b) * size, b_mem, &err);
+	*d_c = clCreateBuffer(context, c_flags, sizeof(*h_c) * size, c_mem, &err);
 	CHKERR(err, "Failed to create chunk buffers!");
 
 	err = clEnqueueWriteBuffer(queue, *d_a, CL_TRUE, 0, sizeof(*h_a) * size, h_a + offset, 0, NULL, NULL);
@@ -443,8 +452,6 @@ void test_chunk_kernel(cl_context context, cl_command_queue queue, cl_device_id 
 	size_t global_size = (size / local_size) * local_size + (size % local_size == 0 ? 0 : local_size);
 	err = clEnqueueNDRangeKernel(queue, kernel, 1, NULL, &global_size, &local_size, 0, NULL, NULL);
 	CHKERR(err, "Failed to run kernel!");
-	clFinish(queue);
-	CHKERR(err, "Failed to finish queue!");
 }
 
 void test_chunk_cleanup(cl_context context, cl_command_queue queue, size_t size, size_t offset, int isGPU)
@@ -489,9 +496,21 @@ void run_test()
 	}
 	else if(scheme == CPU_ONLY)
 	{
-		test_chunk_setup(context_cpu, commands_cpu, length, 0, 1);
-		test_chunk_kernel(context_cpu, commands_cpu, device_id_cpu, kernel_compute_cpu, length, 0, 1);
-		test_chunk_cleanup(context_cpu, commands_cpu, length, 0, 1);
+		test_chunk_setup(context_cpu, commands_cpu, length, 0, 0);
+		test_chunk_kernel(context_cpu, commands_cpu, device_id_cpu, kernel_compute_cpu, length, 0, 0);
+		test_chunk_cleanup(context_cpu, commands_cpu, length, 0, 0);
+	}
+	else if(scheme == CPU_GPU_STATIC)
+	{
+		size_t gpu_size = length * ratio;
+		test_chunk_setup(context_cpu, commands_cpu, length - gpu_size, 0, 0);
+		test_chunk_kernel(context_cpu, commands_cpu, device_id_cpu, kernel_compute_cpu, length - gpu_size, 0, 0);
+		test_chunk_cleanup(context_cpu, commands_cpu, length - gpu_size, 0, 0);
+
+		test_chunk_setup(context_gpu, commands_gpu, gpu_size, length - gpu_size, 1);
+		test_chunk_kernel(context_gpu, commands_gpu, device_id_gpu, kernel_compute_gpu, gpu_size, length - gpu_size, 1);
+		test_chunk_cleanup(context_gpu, commands_gpu, gpu_size, length - gpu_size, 1);
+		
 	}
 	else
 	{
