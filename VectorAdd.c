@@ -23,6 +23,7 @@
 struct timespec timer1;
 struct timespec timer2;
 
+//OpenCL Constructs
 const char *KernelSourceFile = "VectorAdd.cl";
 cl_platform_id platform_id;
 cl_device_id device_id_gpu;
@@ -35,12 +36,31 @@ cl_program program;
 cl_kernel kernel_compute_cpu;
 cl_kernel kernel_compute_gpu;
 
+//Number of iterations to warmup caches
 const int warmup = 2;
 
 enum scheme_t { CPU_ONLY, GPU_ONLY, CPU_GPU_STATIC, CPU_GPU_DYNAMIC };
-
 enum scheme_t scheme = CPU_ONLY;
 float ratio = 0.01;
+
+//Data
+unsigned long length;
+unsigned char* h_a;
+unsigned char* h_b;
+unsigned char* h_c;
+unsigned char* h_check;
+cl_mem dc_a;
+cl_mem dc_b;
+cl_mem dc_c;
+cl_mem dg_a;
+cl_mem dg_b;
+cl_mem dg_c;
+
+//Function Prototypes
+void fillArray(unsigned char* nums, unsigned long length);
+void verify_answer(unsigned char* toCheck, unsigned char* answer, const unsigned int len);
+void serial_vector_add(unsigned char* a, unsigned char* b, unsigned char* c, const unsigned int len);
+
 
 cl_program createProgramFromSource(const char* filename, const cl_context context)
 {
@@ -348,6 +368,139 @@ void vadd_default(unsigned char* a, unsigned char* b, unsigned char* c, unsigned
 	clReleaseMemObject(dev_c_gpu);
 }
 
+
+
+
+void test_setup()
+{
+	fillArray(h_a, length);
+	fillArray(h_b, length);
+	serial_vector_add(h_a, h_b, h_check, length);
+}
+
+void test_init()
+{
+}
+
+void test_chunk_setup(cl_context context, cl_command_queue queue, size_t size, size_t offset, int isGPU)
+{
+	cl_mem* d_a;
+	cl_mem* d_b;
+	cl_mem* d_c;
+	cl_mem_flags a_flags = CL_MEM_READ_ONLY;
+	cl_mem_flags b_flags = CL_MEM_READ_ONLY;
+	cl_mem_flags c_flags = CL_MEM_WRITE_ONLY;
+	if(isGPU)
+	{
+		d_a = &dg_a;
+		d_b = &dg_b;
+		d_c = &dg_c;
+	}
+	else
+	{
+		d_a = &dc_a;
+		d_b = &dc_b;
+		d_c = &dc_c;
+	}
+	int err;
+	*d_a = clCreateBuffer(context, a_flags, sizeof(*h_a) * size, NULL, &err);
+	*d_b = clCreateBuffer(context, b_flags, sizeof(*h_b) * size, NULL, &err);
+	*d_c = clCreateBuffer(context, c_flags, sizeof(*h_c) * size, NULL, &err);
+	CHKERR(err, "Failed to create chunk buffers!");
+
+	err = clEnqueueWriteBuffer(queue, *d_a, CL_TRUE, 0, sizeof(*h_a) * size, h_a + offset, 0, NULL, NULL);
+	CHKERR(err, "Failed to write chunk buffer A!");
+	err = clEnqueueWriteBuffer(queue, *d_b, CL_TRUE, 0, sizeof(*h_b) * size, h_b + offset, 0, NULL, NULL);
+	CHKERR(err, "Failed to write chunk buffer B!");
+}
+
+void test_chunk_kernel(cl_context context, cl_command_queue queue, cl_device_id device, cl_kernel kernel, size_t size, size_t offset, int isGPU)
+{
+	cl_mem* d_a;
+	cl_mem* d_b;
+	cl_mem* d_c;
+	if(isGPU)
+	{
+		d_a = &dg_a;
+		d_b = &dg_b;
+		d_c = &dg_c;
+	}
+	else
+	{
+		d_a = &dc_a;
+		d_b = &dc_b;
+		d_c = &dc_c;
+	}
+	size_t local_size;
+	clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &local_size, NULL);
+
+	int err = clSetKernelArg(kernel, 0, sizeof(cl_mem), d_a);
+	err |= clSetKernelArg(kernel, 1, sizeof(cl_mem), d_b);
+	err |= clSetKernelArg(kernel, 2, sizeof(cl_mem), d_c);
+	err |= clSetKernelArg(kernel, 3, sizeof(size_t), &size);
+	CHKERR(err, "Errors setting kernel arguments");
+
+	size_t global_size = (size / local_size) * local_size + (size % local_size == 0 ? 0 : local_size);
+	err = clEnqueueNDRangeKernel(queue, kernel, 1, NULL, &global_size, &local_size, 0, NULL, NULL);
+	CHKERR(err, "Failed to run kernel!");
+	clFinish(queue);
+	CHKERR(err, "Failed to finish queue!");
+}
+
+void test_chunk_cleanup(cl_context context, cl_command_queue queue, size_t size, size_t offset, int isGPU)
+{
+	cl_mem* d_a;
+	cl_mem* d_b;
+	cl_mem* d_c;
+	if(isGPU)
+	{
+		d_a = &dg_a;
+		d_b = &dg_b;
+		d_c = &dg_c;
+	}
+	else
+	{
+		d_a = &dc_a;
+		d_b = &dc_b;
+		d_c = &dc_c;
+	}
+	int err = clEnqueueReadBuffer(queue, *d_c, CL_TRUE, 0, sizeof(*h_c) * size, h_c + offset, 0, NULL, NULL);
+	CHKERR(err, "Failed to write chunk buffer C!");
+	
+	clReleaseMemObject(*d_a);
+	clReleaseMemObject(*d_b);
+	clReleaseMemObject(*d_c);
+}
+
+void test_cleanup()
+{
+	verify_answer(h_c, h_check, length);
+}
+
+void run_test()
+{
+	test_setup();
+	test_init();	
+	if(scheme == GPU_ONLY)
+	{
+		test_chunk_setup(context_gpu, commands_gpu, length, 0, 1);
+		test_chunk_kernel(context_gpu, commands_gpu, device_id_gpu, kernel_compute_gpu, length, 0, 1);
+		test_chunk_cleanup(context_gpu, commands_gpu, length, 0, 1);
+	}
+	else if(scheme == CPU_ONLY)
+	{
+		test_chunk_setup(context_cpu, commands_cpu, length, 0, 1);
+		test_chunk_kernel(context_cpu, commands_cpu, device_id_cpu, kernel_compute_cpu, length, 0, 1);
+		test_chunk_cleanup(context_cpu, commands_cpu, length, 0, 1);
+	}
+	else
+	{
+		fprintf(stderr, "Scheme not supported.\n");
+		abort();
+	}
+	test_cleanup();	
+}
+
 void fillArray(unsigned char* nums, unsigned long length)
 {
 	int i;
@@ -378,57 +531,49 @@ void verify_answer(unsigned char* toCheck, unsigned char* answer, const unsigned
 
 int main(int argc, char** argv)
 {
-	unsigned char* nums_1;
-	unsigned char* nums_2;
-	unsigned char* nums_3;
-	unsigned char* nums_check;
-	unsigned char* scheme_name;
-	unsigned long length = atoi(argv[1]);
+	const char* scheme_name;
+
+	length = atoi(argv[1]);
 	unsigned int iters = atoi(argv[2]);
 	switch(atoi(argv[3]))
 	{
 		case 0: scheme = CPU_ONLY;
-			scheme_name = (unsigned char*)"c";
+			scheme_name = "c";
 			break;
 		case 1: scheme = GPU_ONLY;
-			scheme_name = (unsigned char*)"g";
+			scheme_name = "g";
 			break;
 		case 2: scheme = CPU_GPU_STATIC;
-			scheme_name = (unsigned char*)"cg-s";
+			scheme_name = "cg-s";
 			if(argc > 4)
 				ratio = atof(argv[4]);
 			break;
 		case 3: scheme = CPU_GPU_DYNAMIC;
-			scheme_name = (unsigned char*)"cg-d";
+			scheme_name = "cg-d";
 			break;
 		default:
 			fprintf(stderr, "Error: no scheme specified\n");
 			exit(1);
 	}
-	nums_1 = malloc(sizeof(*nums_1) *  length);
-	nums_2 = malloc(sizeof(*nums_2) *  length);
-	nums_3 = malloc(sizeof(*nums_3) *  length);
-	nums_check = malloc(sizeof(*nums_check) *  length);
+	h_a = malloc(sizeof(*h_a) *  length);
+	h_b = malloc(sizeof(*h_b) *  length);
+	h_c = malloc(sizeof(*h_c) *  length);
+	h_check = malloc(sizeof(*h_check) *  length);
 
 	setupGPU();	
 
 	srand(time(0));
-	fillArray(nums_1, length);
-	fillArray(nums_2, length);
-	serial_vector_add(nums_1, nums_2, nums_check, length);
 
 	float data_time = 0;
 	float exec_time = 0;
 	
-//	fprintf(stdout, "Trial no.\tData Access Scheme\tData Elements\tData Transfer Time\tKernel Execution Time\n");
-
 	int i;
-	//fprintf(stdout,"Default Flags (Read/Write Buffers)\n");
 	for(i = 0; i < iters+warmup; i++)
 	{
-		memset(nums_3, 0, sizeof(unsigned char) * length);
-		vadd_default(nums_1, nums_2, nums_3, length, &data_time, &exec_time);
-		verify_answer(nums_3, nums_check, length);	
+		memset(h_c, 0, sizeof(unsigned char) * length);
+//		vadd_default(h_a, h_b, h_c, length, &data_time, &exec_time);
+//		verify_answer(h_c, h_check, length);	
+		run_test();
 		if(i >= warmup)
 		{
 			fprintf(stdout,"%d\tVectorAdd\t%s\t%f\t%lu\t%f\t%f\n", i - warmup, scheme_name, ratio, length, data_time, exec_time);
@@ -438,8 +583,9 @@ int main(int argc, char** argv)
 	}
 
 	fflush(stdout);
-	free(nums_1);
-	free(nums_2);
-	free(nums_3);
+	free(h_a);
+	free(h_b);
+	free(h_c);
+	free(h_check);
 	return 0;
 }
