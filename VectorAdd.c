@@ -484,33 +484,79 @@ void test_cleanup()
 	verify_answer(h_c, h_check, length);
 }
 
-void run_test()
+void run_test(float* data_time, float* exec_time)
 {
 	test_setup();
+	TIMER_START;
 	test_init();	
+	TIMER_END;
+	*data_time += MILLISECONDS;
 	if(scheme == GPU_ONLY)
 	{
+		TIMER_START;
 		test_chunk_setup(context_gpu, commands_gpu, length, 0, 1);
+		clFinish(commands_gpu);
+		TIMER_END;
+		*data_time += MILLISECONDS;
+		
+		TIMER_START;
 		test_chunk_kernel(context_gpu, commands_gpu, device_id_gpu, kernel_compute_gpu, length, 0, 1);
+		clFinish(commands_gpu);
+		TIMER_END;
+		*exec_time += MILLISECONDS;
+		
+		TIMER_START;
 		test_chunk_cleanup(context_gpu, commands_gpu, length, 0, 1);
+		clFinish(commands_gpu);
+		TIMER_END;
+		*exec_time += MILLISECONDS;
 	}
 	else if(scheme == CPU_ONLY)
 	{
+		TIMER_START;
 		test_chunk_setup(context_cpu, commands_cpu, length, 0, 0);
+		clFinish(commands_cpu);
+		TIMER_END;
+		*data_time += MILLISECONDS;
+		
+		TIMER_START;
 		test_chunk_kernel(context_cpu, commands_cpu, device_id_cpu, kernel_compute_cpu, length, 0, 0);
+		clFinish(commands_cpu);
+		TIMER_END;
+		*exec_time += MILLISECONDS;
+		
+		TIMER_START;
 		test_chunk_cleanup(context_cpu, commands_cpu, length, 0, 0);
+		clFinish(commands_cpu);
+		TIMER_END;
+		*exec_time += MILLISECONDS;
 	}
 	else if(scheme == CPU_GPU_STATIC)
 	{
 		size_t gpu_size = length * ratio;
+		TIMER_START;
 		test_chunk_setup(context_cpu, commands_cpu, length - gpu_size, 0, 0);
-		test_chunk_kernel(context_cpu, commands_cpu, device_id_cpu, kernel_compute_cpu, length - gpu_size, 0, 0);
-		test_chunk_cleanup(context_cpu, commands_cpu, length - gpu_size, 0, 0);
-
 		test_chunk_setup(context_gpu, commands_gpu, gpu_size, length - gpu_size, 1);
+		clFinish(commands_cpu);
+		clFinish(commands_gpu);
+		TIMER_END;
+		*data_time += MILLISECONDS;
+	
+		TIMER_START;
+		test_chunk_kernel(context_cpu, commands_cpu, device_id_cpu, kernel_compute_cpu, length - gpu_size, 0, 0);
 		test_chunk_kernel(context_gpu, commands_gpu, device_id_gpu, kernel_compute_gpu, gpu_size, length - gpu_size, 1);
-		test_chunk_cleanup(context_gpu, commands_gpu, gpu_size, length - gpu_size, 1);
+		clFinish(commands_cpu);
+		clFinish(commands_gpu);
+		TIMER_END;
+		*exec_time += MILLISECONDS;
 		
+		TIMER_START;
+		test_chunk_cleanup(context_cpu, commands_cpu, length - gpu_size, 0, 0);
+		test_chunk_cleanup(context_gpu, commands_gpu, gpu_size, length - gpu_size, 1);
+		clFinish(commands_cpu);
+		clFinish(commands_gpu);
+		TIMER_END;
+		*data_time += MILLISECONDS;
 	}
 	else
 	{
@@ -592,7 +638,7 @@ int main(int argc, char** argv)
 		memset(h_c, 0, sizeof(unsigned char) * length);
 //		vadd_default(h_a, h_b, h_c, length, &data_time, &exec_time);
 //		verify_answer(h_c, h_check, length);	
-		run_test();
+		run_test(&data_time, &exec_time);
 		if(i >= warmup)
 		{
 			fprintf(stdout,"%d\tVectorAdd\t%s\t%f\t%lu\t%f\t%f\n", i - warmup, scheme_name, ratio, length, data_time, exec_time);
