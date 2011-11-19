@@ -61,6 +61,12 @@ void fillArray(unsigned char* nums, unsigned long length);
 void verify_answer(unsigned char* toCheck, unsigned char* answer, const unsigned int len);
 void serial_vector_add(unsigned char* a, unsigned char* b, unsigned char* c, const unsigned int len);
 
+void test_setup();
+void test_init();
+
+void test_chunk_setup(cl_context context, cl_command_queue commands, size_t global_size, size_t offset, int isGPU);
+void test_chunk_kernel(cl_context context, cl_command_queue commands, cl_device_id device, cl_kernel kernel, size_t global_size, size_t offset, int isGPU);
+void test_chunk_cleanup(cl_context context, cl_command_queue commands, size_t global_size, size_t offset, int isGPU);
 
 cl_program createProgramFromSource(const char* filename, const cl_context context)
 {
@@ -178,28 +184,37 @@ pthread_mutex_t mutex;
 
 struct dynamic_args
 {
-	cl_command_queue queue;
-	cl_device_id dev_id;
-	cl_kernel kernel;
-	cl_mem* c;
+	int isGPU;
 };
 
 void* dynamic_scheduler(void* args)
 {
-	struct dynamic_args* da = (struct dynamic_args*)args;
-	cl_command_queue queue = da->queue;
-	cl_device_id dev_id = da->dev_id;
-	cl_kernel kernel = da->kernel;
-	cl_mem* c = da->c;
+	int isGPU = *((int*)args);
 	size_t local_size;
-	cl_uint compute_units;
-	clGetDeviceInfo(dev_id, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &local_size, NULL);
-	clGetDeviceInfo(dev_id, CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(cl_uint), &compute_units, NULL);
+	
+	cl_device_id device;
+	cl_context context;
+	cl_kernel kernel;
+	cl_command_queue commands;	
+	if(isGPU)
+	{
+		device = device_id_gpu;
+		context = context_gpu;
+		kernel = kernel_compute_gpu;
+		commands = commands_gpu;
+	}
+	else
+	{
+		device = device_id_cpu;
+		context = context_cpu;
+		kernel = kernel_compute_cpu;
+		commands = commands_cpu;
+	}
+	clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &local_size, NULL);
 
-	int err;
-	err = clSetKernelArg(kernel, 2, sizeof(cl_mem), c);
-	int work = compute_units * local_size;
+
 	size_t offset = 0;
+	size_t global_size = 1024 * 80;
 	while(1)
 	{
 		pthread_mutex_lock(&mutex);		
@@ -208,168 +223,18 @@ void* dynamic_scheduler(void* args)
 			pthread_mutex_unlock(&mutex);
 			return NULL;
 		}
-		if(t_length < work)
-			work = t_length;
 		offset = t_offset;
-		size_t global_size = (work / local_size) * local_size + (work % local_size == 0 ? 0 : local_size);
 		t_length -= global_size;
 		t_offset += global_size;
-		//printf("%d, %d\n", offset, t_length);
-		if(global_size != 0)
-		{
-			err = clEnqueueNDRangeKernel(queue, kernel, 1, &offset, &global_size, &local_size, 0, NULL, NULL);
-			CHKERR(err, "Errors setting kernel arguments1");
-		}
-		clFinish(queue);
-		pthread_mutex_unlock(&mutex);	
+		pthread_mutex_unlock(&mutex);
+	
+		global_size = global_size + offset > length ? length - offset : global_size;
+		test_chunk_setup(context, commands, global_size, offset, isGPU);
+		test_chunk_kernel(context, commands, device, kernel, global_size, offset, isGPU);
+		test_chunk_cleanup(context, commands, global_size, offset, isGPU);
+		clFinish(commands);
 	}
 }
-
-float runKernel(cl_mem a, cl_mem b, cl_mem* c_cpu, cl_mem* c_gpu, unsigned long length)
-{
-	int err;
-	size_t local_size_cpu;
-	size_t local_size_gpu;
-	size_t global_size_cpu;
-	size_t global_size_gpu;
-	float executionTime;
-
-	err = clSetKernelArg(kernel_compute_cpu, 0, sizeof(cl_mem), &a);
-	err = clSetKernelArg(kernel_compute_cpu, 1, sizeof(cl_mem), &b);
-	err = clSetKernelArg(kernel_compute_cpu, 3, sizeof(unsigned long), &length);
-	CHKERR(err, "Errors setting kernel arguments");
-
-	clGetDeviceInfo(device_id_cpu, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &local_size_cpu, NULL);
-	clGetDeviceInfo(device_id_gpu, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &local_size_gpu, NULL);
-
-	clFinish(commands_cpu);
-	clFinish(commands_gpu);
-
-	TIMER_START;
-		if(scheme == CPU_ONLY)
-		{
-			err = clSetKernelArg(kernel_compute_cpu, 2, sizeof(cl_mem), c_cpu);
-			global_size_cpu = (length / local_size_cpu) * local_size_cpu + (length % local_size_cpu == 0 ? 0 : local_size_cpu);
-			err = clEnqueueNDRangeKernel(commands_cpu, kernel_compute_cpu, 1, NULL, &global_size_cpu, &local_size_cpu, 0, NULL, NULL);
-			CHKERR(err, "Errors setting kernel arguments");
-			clFinish(commands_cpu);
-			clFinish(commands_gpu);
-		}
-		else if(scheme == GPU_ONLY)
-		{
-			err = clSetKernelArg(kernel_compute_cpu, 2, sizeof(cl_mem), c_gpu);
-			global_size_gpu = (length / local_size_gpu) * local_size_gpu + (length % local_size_gpu == 0 ? 0 : local_size_gpu);
-			err = clEnqueueNDRangeKernel(commands_gpu, kernel_compute_gpu, 1, NULL, &global_size_gpu, &local_size_gpu, 0, NULL, NULL);
-			CHKERR(err, "Errors setting kernel arguments");
-			clFinish(commands_cpu);
-			clFinish(commands_gpu);
-		}
-		else if(scheme == CPU_GPU_STATIC)
-		{
-			err = clSetKernelArg(kernel_compute_cpu, 2, sizeof(cl_mem), c_gpu);
-			size_t gpu_length = length * ratio;
-			global_size_gpu = (gpu_length / local_size_gpu) * local_size_gpu + (gpu_length % local_size_gpu == 0 ? 0 : local_size_gpu);
-			err = clEnqueueNDRangeKernel(commands_gpu, kernel_compute_gpu, 1, NULL, &global_size_gpu, &local_size_gpu, 0, NULL, NULL);
-			CHKERR(err, "Errors setting kernel arguments2");
-			
-			err = clSetKernelArg(kernel_compute_cpu, 2, sizeof(cl_mem), c_cpu);
-			size_t cpu_length = length - global_size_gpu;
-			global_size_cpu = (cpu_length / local_size_cpu) * local_size_cpu + (cpu_length % local_size_cpu == 0 ? 0 : local_size_cpu);
-			if(global_size_cpu != 0)
-			{
-				err = clEnqueueNDRangeKernel(commands_cpu, kernel_compute_cpu, 1, &global_size_gpu, &global_size_cpu, &local_size_cpu, 0, NULL, NULL);
-				CHKERR(err, "Errors setting kernel arguments1");
-			}
-			clFinish(commands_cpu);
-			clFinish(commands_gpu);
-		}
-		else if(scheme == CPU_GPU_DYNAMIC)
-		{
-			pthread_t threads[2];
-
-			struct dynamic_args cpu;
-			struct dynamic_args gpu;
-			int rc;
-			
-			pthread_mutex_init(&mutex, NULL);
-			t_length = length;
-			t_offset = 0;
-	
-			cpu.queue = commands_cpu;
-			cpu.dev_id = device_id_cpu;
-			cpu.kernel = kernel_compute_cpu;		
-			cpu.c =  c_cpu;
-			rc = pthread_create(&threads[0], NULL, dynamic_scheduler, (void*)&cpu);
-			
-			gpu.queue = commands_gpu;
-			gpu.dev_id = device_id_gpu;
-			gpu.kernel = kernel_compute_gpu;
-			gpu.c = c_gpu;
-			rc = pthread_create(&threads[1], NULL, dynamic_scheduler, (void*)&gpu);
-			void* status;
-			rc = pthread_join(threads[0], &status); 
-			rc = pthread_join(threads[1], &status); 
-		}
-	TIMER_END;
-	executionTime = MILLISECONDS;
-
-	return executionTime;
-}
-
-void vadd_default(unsigned char* a, unsigned char* b, unsigned char* c, unsigned long length, float* data_time, float* kernel_time)
-{
-	int err;
-	cl_mem dev_a;
-	cl_mem dev_b;
-	cl_mem dev_c_cpu;
-	cl_mem dev_c_gpu;
-
-	unsigned char* temp = calloc(1, sizeof(*temp) * length);
-
-	dev_a = clCreateBuffer(context_cpu, CL_MEM_READ_ONLY, sizeof(*a) * length, NULL, &err);
-	dev_b = clCreateBuffer(context_cpu, CL_MEM_READ_ONLY, sizeof(*b) * length, NULL, &err);
-	dev_c_cpu = clCreateBuffer(context_gpu, CL_MEM_WRITE_ONLY,sizeof(*c) * length, NULL, &err);
-	dev_c_gpu = clCreateBuffer(context_cpu, CL_MEM_WRITE_ONLY,sizeof(*c) * length, NULL, &err);
-	CHKERR(err, "Errors creating buffers");
-
-	clFinish(commands_cpu);
-	TIMER_START;
-	err = clEnqueueWriteBuffer(commands_cpu, dev_a, CL_TRUE, 0, sizeof(*a) * length, a, 0, NULL, NULL);
-	err = clEnqueueWriteBuffer(commands_cpu, dev_b, CL_TRUE, 0, sizeof(*b) * length, b, 0, NULL, NULL);
-	err = clEnqueueWriteBuffer(commands_cpu, dev_c_gpu, CL_TRUE, 0, sizeof(*c) * length, temp, 0, NULL, NULL);
-	err = clEnqueueWriteBuffer(commands_cpu, dev_c_cpu, CL_TRUE, 0, sizeof(*c) * length, temp, 0, NULL, NULL);
-	clFinish(commands_cpu);
-	TIMER_END;
-	*data_time += MILLISECONDS;
-	CHKERR(err, "Errors writing buffers");
-
-	*kernel_time += runKernel(dev_a, dev_b, &dev_c_cpu, &dev_c_gpu, length);
-	
-	clFinish(commands_cpu);
-	TIMER_START;
-	err = clEnqueueReadBuffer(commands_cpu, dev_c_cpu, CL_TRUE, 0, sizeof(*c) * length, c, 0, NULL, NULL);
-	err = clEnqueueReadBuffer(commands_gpu, dev_c_gpu, CL_TRUE, 0, sizeof(*c) * length, temp, 0, NULL, NULL);
-	int i;
-	for(i = 0; i < length; i++)
-	{
-		if(temp[i] != 0)
-			c[i] = temp[i];
-	}
-	clFinish(commands_cpu);
-	TIMER_END;
-	*data_time += MILLISECONDS;
-	CHKERR(err, "Errors reading buffers");
-
-	free (temp);
-	
-	clReleaseMemObject(dev_a);
-	clReleaseMemObject(dev_b);
-	clReleaseMemObject(dev_c_cpu);
-	clReleaseMemObject(dev_c_gpu);
-}
-
-
-
 
 void test_setup()
 {
@@ -409,7 +274,7 @@ void test_chunk_setup(cl_context context, cl_command_queue queue, size_t size, s
 		c_flags |= CL_MEM_USE_HOST_PTR;
 		a_mem = h_a;
 		b_mem = h_b;
-		c_mem = h_c;
+		c_mem = h_c + offset;
 	}
 	int err;
 	*d_a = clCreateBuffer(context, a_flags, sizeof(*h_a) * size, a_mem, &err);
@@ -417,9 +282,9 @@ void test_chunk_setup(cl_context context, cl_command_queue queue, size_t size, s
 	*d_c = clCreateBuffer(context, c_flags, sizeof(*h_c) * size, c_mem, &err);
 	CHKERR(err, "Failed to create chunk buffers!");
 
-	err = clEnqueueWriteBuffer(queue, *d_a, CL_TRUE, 0, sizeof(*h_a) * size, h_a + offset, 0, NULL, NULL);
+	err = clEnqueueWriteBuffer(queue, *d_a, CL_FALSE, 0, sizeof(*h_a) * size, h_a + offset, 0, NULL, NULL);
 	CHKERR(err, "Failed to write chunk buffer A!");
-	err = clEnqueueWriteBuffer(queue, *d_b, CL_TRUE, 0, sizeof(*h_b) * size, h_b + offset, 0, NULL, NULL);
+	err = clEnqueueWriteBuffer(queue, *d_b, CL_FALSE, 0, sizeof(*h_b) * size, h_b + offset, 0, NULL, NULL);
 	CHKERR(err, "Failed to write chunk buffer B!");
 }
 
@@ -557,6 +422,23 @@ void run_test(float* data_time, float* exec_time)
 		clFinish(commands_gpu);
 		TIMER_END;
 		*data_time += MILLISECONDS;
+	}
+	else if(scheme == CPU_GPU_DYNAMIC)
+	{
+		pthread_t threads[2];
+		int rc;
+		void* status;
+		int isGPU = 1;
+		int isCPU = 0;
+		
+		pthread_mutex_init(&mutex, NULL);
+		t_length = length;
+		t_offset = 0;
+		
+		rc = pthread_create(&threads[0], NULL, dynamic_scheduler, (void*)&isGPU);
+		rc = pthread_create(&threads[1], NULL, dynamic_scheduler, (void*)&isCPU);
+		rc = pthread_join(threads[0], &status); 
+		rc = pthread_join(threads[1], &status); 
 	}
 	else
 	{
