@@ -196,22 +196,13 @@ void* dynamic_scheduler(void* args)
 	cl_context context;
 	cl_kernel kernel;
 	cl_command_queue commands;	
-	if(isGPU)
-	{
-		device = device_id_gpu;
-		context = context_gpu;
-		kernel = kernel_compute_gpu;
-		commands = commands_gpu;
-	}
-	else
-	{
-		device = device_id_cpu;
-		context = context_cpu;
-		kernel = kernel_compute_cpu;
-		commands = commands_cpu;
-	}
-	clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &local_size, NULL);
 
+	device = isGPU ? device_id_gpu : device_id_cpu;
+	context = isGPU ? contect_gpu : context_cpu;
+	kernel = isGPU ? kernel_compute_gpu : kernel_compute_cpu;
+	commands = isGPU ? commands_gpu : commands_cpu;
+
+	clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &local_size, NULL);
 
 	size_t offset = 0;
 	size_t global_size = 1024 * 80;
@@ -249,26 +240,18 @@ void test_init()
 
 void test_chunk_setup(cl_context context, cl_command_queue queue, size_t size, size_t offset, int isGPU)
 {
-	cl_mem* d_a;
-	cl_mem* d_b;
-	cl_mem* d_c;
+	cl_mem* d_a = isGPU ? &dg_a : &dc_a;
+	cl_mem* d_b = isGPU ? &dg_b : &dc_b;
+	cl_mem* d_c = isGPU ? &dg_c : &dc_c;
 	cl_mem_flags a_flags = CL_MEM_READ_ONLY;
 	cl_mem_flags b_flags = CL_MEM_READ_ONLY;
 	cl_mem_flags c_flags = CL_MEM_WRITE_ONLY;
 	void* a_mem = NULL;
 	void* b_mem = NULL;
 	void* c_mem = NULL;
-	if(isGPU)
+
+	if(isCPU)
 	{
-		d_a = &dg_a; 
-		d_b = &dg_b;
-		d_c = &dg_c;
-	}
-	else
-	{
-		d_a = &dc_a;
-		d_b = &dc_b;
-		d_c = &dc_c;
 		a_flags |= CL_MEM_USE_HOST_PTR;
 		b_flags |= CL_MEM_USE_HOST_PTR;
 		c_flags |= CL_MEM_USE_HOST_PTR;
@@ -276,6 +259,7 @@ void test_chunk_setup(cl_context context, cl_command_queue queue, size_t size, s
 		b_mem = h_b;
 		c_mem = h_c + offset;
 	}
+
 	int err;
 	*d_a = clCreateBuffer(context, a_flags, sizeof(*h_a) * size, a_mem, &err);
 	*d_b = clCreateBuffer(context, b_flags, sizeof(*h_b) * size, b_mem, &err);
@@ -290,21 +274,10 @@ void test_chunk_setup(cl_context context, cl_command_queue queue, size_t size, s
 
 void test_chunk_kernel(cl_context context, cl_command_queue queue, cl_device_id device, cl_kernel kernel, size_t size, size_t offset, int isGPU)
 {
-	cl_mem* d_a;
-	cl_mem* d_b;
-	cl_mem* d_c;
-	if(isGPU)
-	{
-		d_a = &dg_a;
-		d_b = &dg_b;
-		d_c = &dg_c;
-	}
-	else
-	{
-		d_a = &dc_a;
-		d_b = &dc_b;
-		d_c = &dc_c;
-	}
+	cl_mem* d_a = isGPU ? &dg_a : &dc_a;
+	cl_mem* d_b = isGPU ? &dg_b : &dc_b;
+	cl_mem* d_c = isGPU ? &dg_c : &dc_c;
+
 	size_t local_size;
 	clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &local_size, NULL);
 
@@ -321,21 +294,10 @@ void test_chunk_kernel(cl_context context, cl_command_queue queue, cl_device_id 
 
 void test_chunk_cleanup(cl_context context, cl_command_queue queue, size_t size, size_t offset, int isGPU)
 {
-	cl_mem* d_a;
-	cl_mem* d_b;
-	cl_mem* d_c;
-	if(isGPU)
-	{
-		d_a = &dg_a;
-		d_b = &dg_b;
-		d_c = &dg_c;
-	}
-	else
-	{
-		d_a = &dc_a;
-		d_b = &dc_b;
-		d_c = &dc_c;
-	}
+	cl_mem* d_a = isGPU ? &dg_a : &dc_a;
+	cl_mem* d_b = isGPU ? &dg_b : &dc_b;
+	cl_mem* d_c = isGPU ? &dg_c : &dc_c;
+
 	int err = clEnqueueReadBuffer(queue, *d_c, CL_TRUE, 0, sizeof(*h_c) * size, h_c + offset, 0, NULL, NULL);
 	CHKERR(err, "Failed to write chunk buffer C!");
 	
