@@ -198,7 +198,7 @@ void* dynamic_scheduler(void* args)
 	cl_command_queue commands;	
 
 	device = isGPU ? device_id_gpu : device_id_cpu;
-	context = isGPU ? contect_gpu : context_cpu;
+	context = isGPU ? context_gpu : context_cpu;
 	kernel = isGPU ? kernel_compute_gpu : kernel_compute_cpu;
 	commands = isGPU ? commands_gpu : commands_cpu;
 
@@ -250,7 +250,7 @@ void test_chunk_setup(cl_context context, cl_command_queue queue, size_t size, s
 	void* b_mem = NULL;
 	void* c_mem = NULL;
 
-	if(isCPU)
+	if(!isGPU)
 	{
 		a_flags |= CL_MEM_USE_HOST_PTR;
 		b_flags |= CL_MEM_USE_HOST_PTR;
