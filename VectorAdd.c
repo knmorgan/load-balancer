@@ -397,10 +397,13 @@ void run_test(float* data_time, float* exec_time)
 		t_length = length;
 		t_offset = 0;
 		
+		TIMER_START;
 		rc = pthread_create(&threads[0], NULL, dynamic_scheduler, (void*)&isGPU);
 		rc = pthread_create(&threads[1], NULL, dynamic_scheduler, (void*)&isCPU);
 		rc = pthread_join(threads[0], &status); 
 		rc = pthread_join(threads[1], &status); 
+		TIMER_END;
+		*data_time += MILLISECONDS;
 	}
 	else
 	{
