@@ -56,6 +56,15 @@ cl_mem dg_a;
 cl_mem dg_b;
 cl_mem dg_c;
 
+
+// Struct for passing arguments to dynamic_scheduler
+struct dynamic_args
+{
+	int isGPU;
+	float data_time;
+	float exec_time;
+};
+
 //Function Prototypes
 void fillArray(unsigned char* nums, unsigned long length);
 void verify_answer(unsigned char* toCheck, unsigned char* answer, const unsigned int len);
@@ -182,15 +191,12 @@ size_t t_offset;
 pthread_mutex_t mutex;
 
 
-struct dynamic_args
+void* dynamic_scheduler(void* argv)
 {
-	int isGPU;
-};
-
-void* dynamic_scheduler(void* args)
-{
-	int isGPU = *((int*)args);
+	struct dynamic_args* args = argv;
+	int isGPU = args->isGPU;
 	size_t local_size;
+	struct timespec time_start, time_end;
 	
 	cl_device_id device;
 	cl_context context;
@@ -220,10 +226,23 @@ void* dynamic_scheduler(void* args)
 		pthread_mutex_unlock(&mutex);
 	
 		global_size = global_size + offset > length ? length - offset : global_size;
+
+
+		clock_gettime(CLOCK_REALTIME, &time_start);
 		test_chunk_setup(context, commands, global_size, offset, isGPU);
+		clock_gettime(CLOCK_REALTIME, &time_end);
+		args->data_time += (time_end.tv_sec - time_start.tv_sec) * 1000.0f + (time_end.tv_nsec - time_start.tv_nsec) / 1000000.0f;
+
+		clock_gettime(CLOCK_REALTIME, &time_start);
 		test_chunk_kernel(context, commands, device, kernel, global_size, offset, isGPU);
+		clock_gettime(CLOCK_REALTIME, &time_end);
+		args->exec_time += (time_end.tv_sec - time_start.tv_sec) * 1000.0f + (time_end.tv_nsec - time_start.tv_nsec) / 1000000.0f;
+
+		clock_gettime(CLOCK_REALTIME, &time_start);
 		test_chunk_cleanup(context, commands, global_size, offset, isGPU);
+		clock_gettime(CLOCK_REALTIME, &time_end);
 		clFinish(commands);
+		args->data_time += (time_end.tv_sec - time_start.tv_sec) * 1000.0f + (time_end.tv_nsec - time_start.tv_nsec) / 1000000.0f;
 	}
 }
 
@@ -390,20 +409,20 @@ void run_test(float* data_time, float* exec_time)
 		pthread_t threads[2];
 		int rc;
 		void* status;
-		int isGPU = 1;
-		int isCPU = 0;
+		struct dynamic_args cpu_args = {0, 0, 0};
+		struct dynamic_args gpu_args = {0, 0, 0};
 		
 		pthread_mutex_init(&mutex, NULL);
 		t_length = length;
 		t_offset = 0;
 		
-		TIMER_START;
-		rc = pthread_create(&threads[0], NULL, dynamic_scheduler, (void*)&isGPU);
-		rc = pthread_create(&threads[1], NULL, dynamic_scheduler, (void*)&isCPU);
+		rc = pthread_create(&threads[0], NULL, dynamic_scheduler, &gpu_args);
+		rc = pthread_create(&threads[1], NULL, dynamic_scheduler, &cpu_args);
 		rc = pthread_join(threads[0], &status); 
 		rc = pthread_join(threads[1], &status); 
-		TIMER_END;
-		*data_time += MILLISECONDS;
+
+		*data_time = cpu_args.data_time + gpu_args.data_time;
+		*exec_time = cpu_args.data_time + gpu_args.data_time;
 	}
 	else
 	{
