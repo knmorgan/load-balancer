@@ -230,18 +230,20 @@ void* dynamic_scheduler(void* argv)
 
 		clock_gettime(CLOCK_REALTIME, &time_start);
 		test_chunk_setup(context, commands, global_size, offset, isGPU);
+		clFinish(commands);
 		clock_gettime(CLOCK_REALTIME, &time_end);
 		args->data_time += (time_end.tv_sec - time_start.tv_sec) * 1000.0f + (time_end.tv_nsec - time_start.tv_nsec) / 1000000.0f;
 
 		clock_gettime(CLOCK_REALTIME, &time_start);
 		test_chunk_kernel(context, commands, device, kernel, global_size, offset, isGPU);
+		clFinish(commands);
 		clock_gettime(CLOCK_REALTIME, &time_end);
 		args->exec_time += (time_end.tv_sec - time_start.tv_sec) * 1000.0f + (time_end.tv_nsec - time_start.tv_nsec) / 1000000.0f;
 
 		clock_gettime(CLOCK_REALTIME, &time_start);
 		test_chunk_cleanup(context, commands, global_size, offset, isGPU);
-		clock_gettime(CLOCK_REALTIME, &time_end);
 		clFinish(commands);
+		clock_gettime(CLOCK_REALTIME, &time_end);
 		args->data_time += (time_end.tv_sec - time_start.tv_sec) * 1000.0f + (time_end.tv_nsec - time_start.tv_nsec) / 1000000.0f;
 	}
 }
