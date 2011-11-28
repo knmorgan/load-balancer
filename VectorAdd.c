@@ -418,13 +418,15 @@ void run_test(float* data_time, float* exec_time)
 		t_length = length;
 		t_offset = 0;
 		
+		TIMER_START;
 		rc = pthread_create(&threads[0], NULL, dynamic_scheduler, &gpu_args);
 		rc = pthread_create(&threads[1], NULL, dynamic_scheduler, &cpu_args);
 		rc = pthread_join(threads[0], &status); 
 		rc = pthread_join(threads[1], &status); 
+		TIMER_END;
 
-		*data_time = cpu_args.data_time + gpu_args.data_time;
-		*exec_time = cpu_args.exec_time + gpu_args.exec_time;
+		*data_time = MILLISECONDS;//cpu_args.data_time + gpu_args.data_time;
+		//*exec_time = cpu_args.exec_time + gpu_args.exec_time;
 	}
 	else
 	{
