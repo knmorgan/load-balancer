@@ -412,7 +412,7 @@ void run_test(float* data_time, float* exec_time)
 		int rc;
 		void* status;
 		struct dynamic_args cpu_args = {0, 0, 0};
-		struct dynamic_args gpu_args = {0, 0, 0};
+		struct dynamic_args gpu_args = {1, 0, 0};
 		
 		pthread_mutex_init(&mutex, NULL);
 		t_length = length;
