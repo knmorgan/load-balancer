@@ -424,7 +424,7 @@ void run_test(float* data_time, float* exec_time)
 		rc = pthread_join(threads[1], &status); 
 
 		*data_time = cpu_args.data_time + gpu_args.data_time;
-		*exec_time = cpu_args.data_time + gpu_args.data_time;
+		*exec_time = cpu_args.exec_time + gpu_args.exec_time;
 	}
 	else
 	{
