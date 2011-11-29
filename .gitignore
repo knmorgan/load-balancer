@@ -2,3 +2,5 @@ VectorAdd
 *~
 *.o
 *.swp
+*.log
+*.aux
