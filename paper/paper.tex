@@ -89,23 +89,24 @@ machines under test.  We will discuss CPU, GPU, and APU architectures in
 terms of major differences that affect the performance of the device.  
 
 \subsection{CPU Architecture}
-Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do
-eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut
-enim ad minim veniam, quis nostrud exercitation ullamco laboris
-nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor
-in reprehenderit in voluptate velit esse cillum dolore eu fugiat
-nulla pariatur. Excepteur sint occaecat cupidatat non proident,
-sunt in culpa qui officia deserunt mollit anim id est laborum.
+The CPU architecture is designed as a low latency architecture.  To facilitate
+the needs for low latency application performance, a series of hierarchical 
+caches have been designed to hide memory access costs, the most common cause
+of latency in single-threaded applications on modern architectures.  Each core
+of the CPU typically only runs one or two hardware-enabled threads to reduce
+cache pollution, thus avoiding latency.  An example CPU architecture is given
+by Figure \ref{fig:cpu_arch}.
+
+The use of the Single Instruction Multiple Data (SIMD) paradigm enables increased
+performance on these devices by increasing data throughput for data parallel
+applications.
 
 \subsection{GPU Architecture}
-Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do
-eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut
-enim ad minim veniam, quis nostrud exercitation ullamco laboris
-nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor
-in reprehenderit in voluptate velit esse cillum dolore eu fugiat
-nulla pariatur. Excepteur sint occaecat cupidatat non proident,
-sunt in culpa qui officia deserunt mollit anim id est laborum.
-Blah blah blah see figure \ref{fig:cpu_arch}.
+The GPU almost acts a foil to the CPU architecture.  Instead of optimizing the
+architecture of the device to increase performance of a single thread, the GPU
+architecture is specifically designed for large throughput performance.  
+
+The memory hierarchy for the GPU architecture is given by Figure \ref{fig:gpu_arch}.
 
 \begin{figure}[!t]
 \centering
