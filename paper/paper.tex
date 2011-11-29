@@ -123,13 +123,19 @@ The memory hierarchy for the GPU architecture is given by Figure \ref{fig:gpu_ar
 \end{figure}
 
 \subsection{APU Architecture}
-Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do
-eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut
-enim ad minim veniam, quis nostrud exercitation ullamco laboris
-nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor
-in reprehenderit in voluptate velit esse cillum dolore eu fugiat
-nulla pariatur. Excepteur sint occaecat cupidatat non proident,
-sunt in culpa qui officia deserunt mollit anim id est laborum.
+The APU is a relatively new, novel architecture that attempts to 
+improve on the the discrete CPU+GPU system.  The CPU die is split
+between the typical CPU processor as well as allocating space
+for a SIMD engine, the basis for a GPU processor.  The APU has a 
+shared memory between the CPU and SIMD engine, in which accesses
+are facilitated through a high-speed memory controller.  The AMD
+Fusion technology is an example of this type of architecture~\cite{AMDFusion}.
+
+One of the main benefits of the APU is the elimination of the PCI-e
+bus, which allows for much faster transfer between CPU and GPU.  Daga et al.
+show that the AMD Fusion architecture allows for much faster data transfers
+between CPU and GPU, allowing for an overall improvement in runtime, despite
+reduced compute power on the GPU~\cite{Daga2011}. 
 
 \section{Related Work}
 Ryoo et al. discuss optimization strategies for GPU versus CPU runtime
