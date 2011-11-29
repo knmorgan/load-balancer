@@ -1,6 +1,7 @@
 \documentclass[journal]{IEEEtran}
 \usepackage[pdftex]{graphicx}
 \usepackage[cmex10]{amsmath}
+\usepackage{ifthen}
 
 % declare the path(s) where your graphic files are
 \graphicspath{{./diagrams/}}
@@ -350,6 +351,7 @@ U.~Verner, A.~Schuster, and M.~Silberstein,
 
 \end{thebibliography}
 
+\setboolean{@twocolumn}{false}
 \newpage
 \appendix[Team Member Contributions]
 Kenneth Lee did A, B, C.  Kyle Morgan did X, Y, Z.
