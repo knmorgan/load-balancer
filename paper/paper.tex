@@ -84,14 +84,29 @@ nulla pariatur. Excepteur sint occaecat cupidatat non proident,
 sunt in culpa qui officia deserunt mollit anim id est laborum.
 
 \section{Architecture Overview}
-Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do
-eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut
-enim ad minim veniam, quis nostrud exercitation ullamco laboris
-nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor
-in reprehenderit in voluptate velit esse cillum dolore eu fugiat
-nulla pariatur. Excepteur sint occaecat cupidatat non proident,
-sunt in culpa qui officia deserunt mollit anim id est laborum.
-Blah blah blah see figure \ref{fig:cpu_arch}.
+In this section we discuss the different architectures of the experimental
+machines under test.  We will discuss CPU, GPU, and APU architectures in
+terms of major differences that affect the performance of the device.  
+
+\subsection{CPU Architecture}
+The CPU architecture is designed as a low latency architecture.  To facilitate
+the needs for low latency application performance, a series of hierarchical 
+caches have been designed to hide memory access costs, the most common cause
+of latency in single-threaded applications on modern architectures.  Each core
+of the CPU typically only runs one or two hardware-enabled threads to reduce
+cache pollution, thus avoiding latency.  An example CPU architecture is given
+by Figure \ref{fig:cpu_arch}.
+
+The use of the Single Instruction Multiple Data (SIMD) paradigm enables increased
+performance on these devices by increasing data throughput for data parallel
+applications.
+
+\subsection{GPU Architecture}
+The GPU almost acts a foil to the CPU architecture.  Instead of optimizing the
+architecture of the device to increase performance of a single thread, the GPU
+architecture is specifically designed for large throughput performance.  
+
+The memory hierarchy for the GPU architecture is given by Figure \ref{fig:gpu_arch}.
 
 \begin{figure}[!t]
 \centering
@@ -100,6 +115,14 @@ Blah blah blah see figure \ref{fig:cpu_arch}.
 \label{fig:cpu_arch}
 \end{figure}
 
+\begin{figure}[!t]
+\centering
+\includegraphics[width=2.5in]{gpu_architecture}
+\caption{GPU Architecture}
+\label{fig:gpu_arch}
+\end{figure}
+
+\subsection{APU Architecture}
 Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do
 eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut
 enim ad minim veniam, quis nostrud exercitation ullamco laboris
@@ -108,12 +131,32 @@ in reprehenderit in voluptate velit esse cillum dolore eu fugiat
 nulla pariatur. Excepteur sint occaecat cupidatat non proident,
 sunt in culpa qui officia deserunt mollit anim id est laborum.
 
-\begin{figure}[!t]
-\centering
-\includegraphics[width=2.5in]{gpu_architecture}
-\caption{GPU Architecture}
-\label{fig:gpu_arch}
-\end{figure}
+\section{Related Work}
+Ryoo et al. discuss optimization strategies for GPU versus CPU runtime
+systems~\cite{Ryoo2007}.  However, their research is based on a GPU-only
+or CPU-only implementation instead of a heterogeneous approach.  The work
+presented in ~\cite{Jablin2011} describes a runtime and compiled framework
+for improving memory access latency and reducing data transfer overhead
+for GPU kernels.  Our work differs from this, because the kernel execution
+was still being performed soley on the GPU, whereas our work investigates
+kernel execution on multiple devices.
+
+Computation via heterogeneous systems is a relatively new research area for
+high performance computing.  The various frameworks and large number of
+different accelerator devices can make this quite difficult for application
+programmers to manage.  The StarPU system~\cite{Augonnet2009} presents a 
+framework to allow for programmers to write numerical codelets and have them
+automatically run on a heterogeneous system.  Scheduling work for this system
+is one of the most difficult parts of the system, because of the various
+overheads for work-sharing schemes. We simplify this work, by looking at a
+two-device system, and focus on the performance characteristics of different
+scheduling scheme.  Verner et al. use this approach to create a high-throughput
+low-lantecy heterogeneous encryption system~\cite{Verner2011}. 
+
+Jimenez et al.~\cite{Jimenez2009} present a dynamic library which can be used
+in a system to dynamically schedule tasks for GPU computation across various
+processes. The method describes only looks at optimizing usage of the GPU across
+the whole system, instead of optimizing a single application's performance.
 
 % An example of a floating figure using the graphicx package.
 % Note that \label must occur AFTER (or within) \caption.
