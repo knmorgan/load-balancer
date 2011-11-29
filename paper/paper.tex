@@ -25,10 +25,10 @@ Leveraging maximimum performance from specialized hardware is one of the
 major problems facing computer scientists today.  General-purpose computing
 on graphics processing units (GPGPU) is a technique that is becoming
 increasingly popular for handling computations typically performed by the
-CPU.  However, many GPGPU algorithms place the entire workload on the GPU,
-leaving the CPU idle for the duration of the computation.  This paper
-investigates the effect various load-balancing schemes across the CPU and
-GPU have on overall application performance.  Additionally, the discrete and
+CPU.  However, many GPGPU algorithms place the entire workload on the Graphics
+processing unit (GPU) leaving the CPU idle for the duration of the computation.
+This paper investigates the effect various load-balancing schemes across the CPU
+and GPU have on overall application performance.  Additionally, the discrete and
 fused GPU architectures, and their impact on performance, will be investigated.
 \end{abstract}
 
@@ -46,42 +46,68 @@ fused GPU architectures, and their impact on performance, will be investigated.
 % Some journals put the first two words in caps:
 % \IEEEPARstart{T}{his demo} file is ....
 \IEEEPARstart{L}{everaging} the maximum performance from specialized hardware is one
-of the major challenges computer scientists face today.  The unique hardware architecture
-of the Graphics Processing Unit (GPU) gives it a place as a massively parallel hardware
-accelerator.  However, because of the difficulty in programming for this hardware,
-most of the effort is spent on trying to achieve performance from the GPU, while
-leaving the CPU unused.  By also using the CPU to process a smaller part of the
-data we can achieve higher utilization of resources and therefore increase program
-performance.
+of the major problems facing computer scientists today.  The unique architecture of the
+GPU gives it a place as a massively parallel hardware accelerator.  Programming frameworks
+such as OpenCL allow programmers to utilize the stream processors of the GPU for non-graphics
+data.  However, because of the difficulty in programming for this hardware, most of the
+effort is spent on trying to achieve performance from the GPU, while the CPU is left
+unused.  By also making use of CPU to process a chunk of the data, we can achieve higher
+utilization of resources and therefore increase overall program performance.
 
-GPU+CPU co-processing hardly a new idea.  Jimenez et al. \cite{jimenez} present a
+GPU+CPU co-processing hardly a new idea.  Jimenez et al.~\cite{Jimenez2009} present a
 dynamic library which can be used in a system to dynamically schedule tasks for GPU
-computation across various processes. The method describes only looks at optimizing
-usage of the GPU across the whole system, instead of optimizing a single application’s
+computation across various processes. The method described only looks at optimizing
+usage of the GPU across the whole system, rather than optimizing a single application’s
 performance. The StarPU system, on the other hand, presents a method of co-processing
-and load balancing on a per application basis \cite{augonnet}. They show that by using an
-appropriate model for the load balancing, they are able to achieve improvements in
-speed for applications which call for code acceleration multiple times.  We intend
+and load balancing on a per application basis~\cite{Augonnet2009}. They show that by
+using an appropriate model for the load balancing, they are able to achieve improvements
+in speed for applications which call for code acceleration multiple times.  We intend
 to extend this work to improve the speed of each kernel execution by splitting the
-work of that kernel over the capable resources, similar to the schemes used by OpenMP.
-Both of these papers address data transfer times as a major cost of GPU computing.
-Using the new AMD Fusion architecture, which fuses the CPU and GPU onto a single die,
-we may be able to eliminate or greatly reduce this cost, which will impact the overhead
-of GPU+CPU co-processing.
+work of that kernel over the capable resources, similar to the schemes used by
+OpenMP~\cite{Dagum1998}. Both of these papers address data transfer times as a major cost
+of GPU computing. Using the new AMD Fusion architecture, which fuses the CPU and GPU onto
+a single die, we may be able to eliminate or greatly reduce this cost, which will impact
+the overhead of GPU+CPU co-processing.
 
 We expect that by using GPU+CPU processing we will improve the performance of the
-application, when compared to CPU-only or GPU-only.  We will measure performance of the
-application using a wall time clock.  We also hypothesize that the fused GPU+CPU
-architecture will allow for lower overhead for load balancing.
+application, when compared to CPU-only or GPU-only.  That is, consider a workload of size
+$n$, a GPU that requires $t_g$ time to perform one block of computation, and a CPU that
+requires $t_c$ time to perform one block of computation. We expect that the GPU would
+require time $nt_g$ to perform a given computation, while the CPU would require $nt_c$
+time to perform the same computation.  Optimally, we would expect the load-balancing
+scheme to require the following time to perform the computation.
+\[\max{\{(n-m)t_g, mt_c}\} + t_d + t_o\]
+Where $m$ is the amount of the workload given to the CPU ($m \leq n$), $t_d$ is the data
+transfer cost, and $t_o$ is any overhead incurrent from synchronization costs of the load
+balancing scheme or otherwise.  The above will be faster than just the GPU iff
+$t_g - \max{\{(n-m)t_g, mt_c}\} < t_d + t_o$.
 
-\section{Motivation}
-Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do
-eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut
-enim ad minim veniam, quis nostrud exercitation ullamco laboris
-nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor
-in reprehenderit in voluptate velit esse cillum dolore eu fugiat
-nulla pariatur. Excepteur sint occaecat cupidatat non proident,
-sunt in culpa qui officia deserunt mollit anim id est laborum.
+Two different load balancing schemes were implemented for this paper.  The first was a
+static load balancer, which partitions the workload in two, and transfers one chunk to
+the CPU, and the other to the GPU.  The CPU and GPU work entirely independently, and
+their results are merged once each finish.  The static load balancer should have no
+synchronization overhead, and transfers all of the data prior to the computation.
+The main caveat with a static load balancer is that the ratio of the workload given to
+the CPU is chosen by the load balancer.  An optimal ratio would be one such that the
+time to perform the computation is equal for both the CPU and GPU.  Unfortunately, this
+optimal ratio will be application-dependent, meaning that a fixed ratio cannot be optimal
+for every application.  In order for a static load balancer to be optimal for a given
+application, a programmer must tune the amount of workload given to the CPU that works
+best for that application.
+
+The second scheme is a dynamic load balancer, which partitions the data into many smaller
+chunks.  One chunk is sent to the CPU and GPU each for computation.  When one finished,
+it requests another chunk from the load balancer, and this process repeats until the
+entirely workload has been sent to either the CPU or GPU.  The dynamic load balancer
+will incur some amount of synchronization overhead, because shared variables that track
+which chunks of the workload are left must be protected by a lock.  Unlike the static
+load balancer, the dynamic load balancer transfers data throughout the computation.
+The dynamic load balancer is designed to mitigate the primary problem with the static
+load balancer - that the optimal ratio of computation performed on the CPU is
+application-dependent.  A chunk size must be chosen such that the processing units are
+not requesting chunks so frequently that contention for shared variables rise and
+synchronization overhead increases, yet small enough to not allow one processing unit
+to receive a disproportionate amount of work.
 
 \section{Architecture Overview}
 In this section we discuss the different architectures of the experimental
@@ -95,7 +121,7 @@ caches have been designed to hide memory access costs, the most common cause
 of latency in single-threaded applications on modern architectures.  Each core
 of the CPU typically only runs one or two hardware-enabled threads to reduce
 cache pollution, thus avoiding latency.  An example CPU architecture is given
-by Figure \ref{fig:cpu_arch}.
+by Figure~\ref{fig:cpu_arch}.
 
 The use of the Single Instruction Multiple Data (SIMD) paradigm enables increased
 performance on these devices by increasing data throughput for data parallel
@@ -106,7 +132,7 @@ The GPU almost acts a foil to the CPU architecture.  Instead of optimizing the
 architecture of the device to increase performance of a single thread, the GPU
 architecture is specifically designed for large throughput performance.  
 
-The memory hierarchy for the GPU architecture is given by Figure \ref{fig:gpu_arch}.
+The memory hierarchy for the GPU architecture is given by Figure~\ref{fig:gpu_arch}.
 
 \begin{figure}[!t]
 \centering
@@ -123,6 +149,24 @@ The memory hierarchy for the GPU architecture is given by Figure \ref{fig:gpu_ar
 \end{figure}
 
 \subsection{APU Architecture}
+Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut
+enim ad minim veniam, quis nostrud exercitation ullamco laboris
+nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor
+in reprehenderit in voluptate velit esse cillum dolore eu fugiat
+nulla pariatur. Excepteur sint occaecat cupidatat non proident,
+sunt in culpa qui officia deserunt mollit anim id est laborum.
+
+\section{Results}
+Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut
+enim ad minim veniam, quis nostrud exercitation ullamco laboris
+nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor
+in reprehenderit in voluptate velit esse cillum dolore eu fugiat
+nulla pariatur. Excepteur sint occaecat cupidatat non proident,
+sunt in culpa qui officia deserunt mollit anim id est laborum.
+
+\section{Analysis}
 Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do
 eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut
 enim ad minim veniam, quis nostrud exercitation ullamco laboris
@@ -253,26 +297,40 @@ sunt in culpa qui officia deserunt mollit anim id est laborum.
 
 \begin{thebibliography}{1}
 
-\bibitem{augonnet}
+\bibitem{Augonnet2009}
 C.~Augonnet, S.~Thibault, R.~Namyst, and P.A.~Wacrenier,
 ``StarPU: A Unified Platform for Task Scheduling on Heterogeneous Multicore Architectures'' in
 \emph{Proceedings of the 15th International Euro-Par Conference on Parallel Processing}, 2009, pp. 863-874.
 
-\bibitem{che}
+\bibitem{Che2009}
 S.~Che, M.~Boyer, J.~Meng, D.~Tarjan, J.W.~Sheaffer, S.H.~Lee, and K.~Skadron,
 ``Rodinia: A benchmark suite for heterogeneous computing'' in
 \emph{Proceedings of the 2009 IEEE International Symposium on Workload Characterization (IISWC)}, 2009, pp. 44-54.
 
-\bibitem{danalis}
+\bibitem{Dagum1998}
+L.~Dagum and R.~Menon,
+``OpenMP: An industry-standard API for shared-memory programming'', in
+\emph{IEEE Computational Science and Engineering} 1998, pp. 46–55.
+
+\bibitem{Danalis2010}
 A.~Danalis, G.~Marin, C.~McCurdy, J.S.~Meredith, P.C.~Roth, K.~Spafford, V.~Tipparaju, and J.S.~Vetter,
 ``The Scalable Heterogeneous Computing (SHOC) benchmark suite'' in
 \emph{Proceedings of the 3rd Workshop on General-Purpose Computation on Graphics Processing Units}, 2010, pp. 63-74.
 
-\bibitem{jimenez}
+\bibitem{Jimenez2009}
 V.J.~Jiménez, L.~Villanova, I.~Gelado, M.~Gil, G.~Fursin, and N.~Navarro,
 ``Predictive Runtime Code Scheduling for Heterogeneous Architectures,'' in
-\emph{Proceedings of the 4th International Conference on High Performance Embedded
-Architectures and Compilers}, 2009, pp. 19-33.
+\emph{Proceedings of the 4th International Conference on High Performance Embedded Architectures and Compilers}, 2009, pp. 19-33.
+
+\bibitem{Ryoo2007}
+S.~Ryoo, C.I.~Rodrigues, S.S.~Baghsorkhi, S.S.~Stone, D.B.~Kirk, and W.W.~Hwu,
+``Optimization Principles and Application Performance Evaluation of a Multithreaded GPU Using CUDA'' in
+\emph{Proceedings of the 13th ACM SIGPLAN Symposium on Principles and practice of parallel programming}, 2007, pp. 73-82.
+
+\bibitem{Verner2011}
+U.~Verner, A.~Schuster, and M.~Silberstein,
+``Processing data streams with hard real-time constraints on heterogeneous systems'' in
+\emph{Proceedings of the international conference on Supercomputing}, 2011, pp. 120-130.
 
 \end{thebibliography}
 
