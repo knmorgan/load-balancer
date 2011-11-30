@@ -24,7 +24,7 @@ struct timespec timer1;
 struct timespec timer2;
 
 //OpenCL Constructs
-const char *KernelSourceFile = "VectorAdd.cl";
+const char *KernelSourceFile = "CPUBound.cl";
 cl_platform_id platform_id;
 cl_device_id device_id_gpu;
 cl_device_id device_id_cpu;
@@ -111,7 +111,7 @@ cl_kernel create_kernel(const char* filename, const char* kernel, const cl_conte
 	cl_program program = createProgramFromSource(filename, context);
 
 	// Build the program executable
-	int err = clBuildProgram(program, 1, &device, NULL, NULL, NULL);
+	int err = clBuildProgram(program, 1, &device, "-cl-opt-disable", NULL, NULL);
 	if (err == CL_BUILD_PROGRAM_FAILURE)
 	{
 		char *log;
@@ -261,6 +261,8 @@ void test_init()
 
 void test_chunk_setup(cl_context context, cl_command_queue queue, size_t size, size_t offset, int isGPU)
 {
+	if(size == 0)
+		return;
 	cl_mem* d_a = isGPU ? &dg_a : &dc_a;
 	cl_mem* d_b = isGPU ? &dg_b : &dc_b;
 	cl_mem* d_c = isGPU ? &dg_c : &dc_c;
@@ -295,6 +297,8 @@ void test_chunk_setup(cl_context context, cl_command_queue queue, size_t size, s
 
 void test_chunk_kernel(cl_context context, cl_command_queue queue, cl_device_id device, cl_kernel kernel, size_t size, size_t offset, int isGPU)
 {
+	if(size == 0)
+		return;
 	cl_mem* d_a = isGPU ? &dg_a : &dc_a;
 	cl_mem* d_b = isGPU ? &dg_b : &dc_b;
 	cl_mem* d_c = isGPU ? &dg_c : &dc_c;
@@ -315,6 +319,8 @@ void test_chunk_kernel(cl_context context, cl_command_queue queue, cl_device_id 
 
 void test_chunk_cleanup(cl_context context, cl_command_queue queue, size_t size, size_t offset, int isGPU)
 {
+	if(size == 0)
+		return;
 	cl_mem* d_a = isGPU ? &dg_a : &dc_a;
 	cl_mem* d_b = isGPU ? &dg_b : &dc_b;
 	cl_mem* d_c = isGPU ? &dg_c : &dc_c;
@@ -329,7 +335,7 @@ void test_chunk_cleanup(cl_context context, cl_command_queue queue, size_t size,
 
 void test_cleanup()
 {
-	verify_answer(h_c, h_check, length);
+	//verify_answer(h_c, h_check, length);
 }
 
 void run_test(float* data_time, float* exec_time)
@@ -357,7 +363,7 @@ void run_test(float* data_time, float* exec_time)
 		test_chunk_cleanup(context_gpu, commands_gpu, length, 0, 1);
 		clFinish(commands_gpu);
 		TIMER_END;
-		*exec_time += MILLISECONDS;
+		*data_time += MILLISECONDS;
 	}
 	else if(scheme == CPU_ONLY)
 	{
@@ -377,7 +383,7 @@ void run_test(float* data_time, float* exec_time)
 		test_chunk_cleanup(context_cpu, commands_cpu, length, 0, 0);
 		clFinish(commands_cpu);
 		TIMER_END;
-		*exec_time += MILLISECONDS;
+		*data_time += MILLISECONDS;
 	}
 	else if(scheme == CPU_GPU_STATIC)
 	{

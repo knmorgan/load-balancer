@@ -1,11 +1,13 @@
-__kernel void compute(__global unsigned long* a,
-			__global unsigned int x,
-			__global unsigned int y,
+__kernel void compute(	__global unsigned char* a,
+			__global unsigned char* b,
+			__global unsigned char* c,
 			const unsigned long length)
 {
 	unsigned int tid = get_global_id(0);
 	if(tid < length)
 	{
+		unsigned int x = a[tid];
+		unsigned int y = b[tid];
 		unsigned int val = 0;
 		val += x;
 		val += y;
@@ -6757,6 +6759,6 @@ __kernel void compute(__global unsigned long* a,
 		val += y;
 		val += x;
 		val += y;
-		a[tid] = val;
+		c[tid] = val;
 	}
 }
