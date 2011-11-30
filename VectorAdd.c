@@ -3,6 +3,7 @@
 #include <string.h>
 #include <time.h>
 #include <pthread.h>
+#include <unistd.h>
 
 #ifdef __APPLE__
 #include <OpenCL/opencl.h>
@@ -24,7 +25,7 @@ struct timespec timer1;
 struct timespec timer2;
 
 //OpenCL Constructs
-const char *KernelSourceFile = "CPUBound.cl";
+const char *KernelSourceFile = "VectorAdd.cl";
 cl_platform_id platform_id;
 cl_device_id device_id_gpu;
 cl_device_id device_id_cpu;
@@ -36,8 +37,11 @@ cl_program program;
 cl_kernel kernel_compute_cpu;
 cl_kernel kernel_compute_gpu;
 
+cl_event event_gpu;
+cl_event event_cpu;
+
 //Number of iterations to warmup caches
-const int warmup = 2;
+const int warmup = 0;
 
 enum scheme_t { CPU_ONLY, GPU_ONLY, CPU_GPU_STATIC, CPU_GPU_DYNAMIC };
 enum scheme_t scheme = CPU_ONLY;
@@ -111,7 +115,8 @@ cl_kernel create_kernel(const char* filename, const char* kernel, const cl_conte
 	cl_program program = createProgramFromSource(filename, context);
 
 	// Build the program executable
-	int err = clBuildProgram(program, 1, &device, "-cl-opt-disable", NULL, NULL);
+	//int err = clBuildProgram(program, 1, &device, "-cl-opt-disable", NULL, NULL);
+	int err = clBuildProgram(program, 1, &device, NULL, NULL, NULL);
 	if (err == CL_BUILD_PROGRAM_FAILURE)
 	{
 		char *log;
@@ -303,6 +308,8 @@ void test_chunk_kernel(cl_context context, cl_command_queue queue, cl_device_id 
 	cl_mem* d_b = isGPU ? &dg_b : &dc_b;
 	cl_mem* d_c = isGPU ? &dg_c : &dc_c;
 
+	cl_event* event = isGPU ? &event_gpu : &event_cpu;
+
 	size_t local_size;
 	clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &local_size, NULL);
 
@@ -313,7 +320,7 @@ void test_chunk_kernel(cl_context context, cl_command_queue queue, cl_device_id 
 	CHKERR(err, "Errors setting kernel arguments");
 
 	size_t global_size = (size / local_size) * local_size + (size % local_size == 0 ? 0 : local_size);
-	err = clEnqueueNDRangeKernel(queue, kernel, 1, NULL, &global_size, &local_size, 0, NULL, NULL);
+	err = clEnqueueNDRangeKernel(queue, kernel, 1, NULL, &global_size, &local_size, 0, NULL, event);
 	CHKERR(err, "Failed to run kernel!");
 }
 
@@ -397,8 +404,12 @@ void run_test(float* data_time, float* exec_time)
 		*data_time += MILLISECONDS;
 	
 		TIMER_START;
-		test_chunk_kernel(context_cpu, commands_cpu, device_id_cpu, kernel_compute_cpu, length - gpu_size, 0, 0);
 		test_chunk_kernel(context_gpu, commands_gpu, device_id_gpu, kernel_compute_gpu, gpu_size, length - gpu_size, 1);
+		test_chunk_kernel(context_cpu, commands_cpu, device_id_cpu, kernel_compute_cpu, length - gpu_size, 0, 0);
+		clFlush(commands_gpu);
+		clFlush(commands_cpu);
+		cl_event events[2] = {event_cpu, event_gpu};
+		clEnqueueWaitForEvents(commands_cpu, 2, events);
 		clFinish(commands_cpu);
 		clFinish(commands_gpu);
 		TIMER_END;
