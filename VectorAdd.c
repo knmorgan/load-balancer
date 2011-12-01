@@ -24,6 +24,12 @@
 struct timespec timer1;
 struct timespec timer2;
 
+#define TOTAL_TIMER_START clock_gettime(CLOCK_REALTIME, &total_timer1)
+#define TOTAL_TIMER_END clock_gettime(CLOCK_REALTIME, &total_timer2)
+#define TOTAL_MILLISECONDS (total_timer2.tv_sec - total_timer1.tv_sec) * 1000.0f + (total_timer2.tv_nsec - total_timer1.tv_nsec) / 1000000.0f
+struct timespec total_timer1;
+struct timespec total_timer2;
+
 //OpenCL Constructs
 const char *KernelSourceFile = "VectorAdd.cl";
 cl_platform_id platform_id;
@@ -345,9 +351,10 @@ void test_cleanup()
 	//verify_answer(h_c, h_check, length);
 }
 
-void run_test(float* data_time, float* exec_time)
+void run_test(float* data_time, float* exec_time, float* total_time)
 {
 	test_setup();
+	TOTAL_TIMER_START;
 	TIMER_START;
 	test_init();	
 	TIMER_END;
@@ -451,6 +458,8 @@ void run_test(float* data_time, float* exec_time)
 		abort();
 	}
 	test_cleanup();	
+	TOTAL_TIMER_END;
+	*total_time = TOTAL_MILLISECONDS;
 }
 
 void fillArray(unsigned char* nums, unsigned long length)
@@ -518,6 +527,7 @@ int main(int argc, char** argv)
 
 	float data_time = 0;
 	float exec_time = 0;
+	float total_time = 0;
 	
 	int i;
 	for(i = 0; i < iters+warmup; i++)
@@ -525,10 +535,10 @@ int main(int argc, char** argv)
 		memset(h_c, 0, sizeof(unsigned char) * length);
 //		vadd_default(h_a, h_b, h_c, length, &data_time, &exec_time);
 //		verify_answer(h_c, h_check, length);	
-		run_test(&data_time, &exec_time);
+		run_test(&data_time, &exec_time, &total_time);
 		if(i >= warmup)
 		{
-			fprintf(stdout,"%d\tVectorAdd\t%s\t%f\t%lu\t%f\t%f\n", i - warmup, scheme_name, ratio, length, data_time, exec_time);
+			fprintf(stdout,"%d\tVectorAdd\t%s\t%f\t%lu\t%f\t%f\t%f\n", i - warmup, scheme_name, ratio, length, data_time, exec_time, total_time);
 		}
 		data_time = 0;
 		exec_time = 0;
