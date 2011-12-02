@@ -4,20 +4,15 @@ __kernel void compute(__global unsigned long* buffer,
 			const unsigned long chunk,
 			__local unsigned long* local_mem)	
 {
-	unsigned int tid = get_global_id(0);
+	unsigned int tid = get_local_size(0) * get_group_id(0) + get_local_id(0);
 	unsigned int lid = get_local_id(0);
 	local_mem[lid] = 0;
-	int start = tid * chunk;
-	int end = start + chunk;
-	int sum = 0;
-	if(end > length)
-		end = length;
-	for(int i = start; i < end; i++)
-		sum += buffer[i];
-	local_mem[lid] = sum;
+	if(tid < length)
+		local_mem[lid] = buffer[tid];
+	local_mem[get_local_size(0) + lid] = buffer[tid + get_local_size(0)];
 
 	barrier(CLK_LOCAL_MEM_FENCE);
-	unsigned int size = get_local_size(0) / 2;
+	unsigned int size = get_local_size(0);
 	while(size > 0)
 	{
 		if(lid < size)

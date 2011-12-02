@@ -264,6 +264,8 @@ void* dynamic_scheduler(void* argv)
 
 void test_setup()
 {
+	ans_gpu = 0;
+	ans_cpu = 0;
 	fillArray(h_a, length);
 	serial_reduce(h_a, &h_check, length);
 }
@@ -305,7 +307,7 @@ void test_chunk_kernel(cl_context context, cl_command_queue queue, cl_device_id 
 		return;
 	cl_mem* d_a = isGPU ? &dg_a : &dc_a;
 	cl_mem* d_b = isGPU ? &dg_b : &dc_b;
-	size_t chunk = isGPU ? 1 : size;
+	size_t chunk = isGPU ? 2 : size;
 
 	cl_event* event = isGPU ? &event_gpu : &event_cpu;
 
@@ -319,7 +321,7 @@ void test_chunk_kernel(cl_context context, cl_command_queue queue, cl_device_id 
 	err |= clSetKernelArg(kernel, 2, sizeof(size_t), &size);
 	err |= clSetKernelArg(kernel, 3, sizeof(size_t), &chunk);
 	if(isGPU)
-		err |= clSetKernelArg(kernel, 4, sizeof(reduce_t) * local_size, NULL);
+		err |= clSetKernelArg(kernel, 4, sizeof(reduce_t) * local_size * 2, NULL);
 	CHKERR(err, "Errors setting kernel arguments");
 
 	size_t groups = size / local_size / chunk + (size % (local_size*chunk) == 0 ? 0 : 1);
@@ -423,8 +425,8 @@ void run_test(float* data_time, float* exec_time, float* total_time)
 		test_chunk_kernel(context_cpu, commands_cpu, device_id_cpu, kernel_compute_cpu, length - gpu_size, 0, 0);
 		clFlush(commands_gpu);
 		clFlush(commands_cpu);
-		cl_event events[2] = {event_cpu, event_gpu};
-		clEnqueueWaitForEvents(commands_cpu, 2, events);
+		//cl_event events[2] = {event_cpu, event_gpu};
+		//clEnqueueWaitForEvents(commands_cpu, 2, events);
 		clFinish(commands_cpu);
 		clFinish(commands_gpu);
 		TIMER_END;
