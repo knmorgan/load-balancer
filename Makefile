@@ -4,11 +4,13 @@ OPENCL_INCLUDE_DIR = /opt/AMDAPP/include/
 CFLAGS = -Wall -Werror -O3 -I$(OPENCL_INCLUDE_DIR)
 LDFLAGS = -lOpenCL -lrt -L$(OPENCL_LIB_DIR)
 
-all: VectorAdd Reduce
+all: VectorAdd Reduce VectorAddPlus
 
 VectorAdd: VectorAdd.o
 
 Reduce: Reduce.o
+
+VectorAddPlus: VectorAddPlus.o
 
 clean:
 	rm -f *.o *~ VectorAdd

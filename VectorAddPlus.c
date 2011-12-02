@@ -30,11 +30,8 @@ struct timespec timer2;
 struct timespec total_timer1;
 struct timespec total_timer2;
 
-typedef unsigned long reduce_t;
-
 //OpenCL Constructs
-const char *KernelSourceFile_cpu = "Reduction_CPU.cl";
-const char *KernelSourceFile_gpu = "Reduction_GPU.cl";
+const char *KernelSourceFile = "CPUBound.cl";
 cl_platform_id platform_id;
 cl_device_id device_id_gpu;
 cl_device_id device_id_cpu;
@@ -50,7 +47,7 @@ cl_event event_gpu;
 cl_event event_cpu;
 
 //Number of iterations to warmup caches
-const int warmup = 2;
+const int warmup = 0;
 
 enum scheme_t { CPU_ONLY, GPU_ONLY, CPU_GPU_STATIC, CPU_GPU_DYNAMIC };
 enum scheme_t scheme = CPU_ONLY;
@@ -58,16 +55,17 @@ float ratio = 0.01;
 
 //Data
 unsigned long length;
-reduce_t* h_a;
-reduce_t* h_b;
-reduce_t h_check;
+unsigned char* h_a;
+unsigned char* h_b;
+unsigned char* h_c;
+unsigned char* h_check;
 cl_mem dc_a;
 cl_mem dc_b;
+cl_mem dc_c;
 cl_mem dg_a;
 cl_mem dg_b;
-reduce_t ans_gpu = 0;
-reduce_t ans_cpu = 0;
-reduce_t ans;
+cl_mem dg_c;
+
 
 // Struct for passing arguments to dynamic_scheduler
 struct dynamic_args
@@ -77,11 +75,10 @@ struct dynamic_args
 	float exec_time;
 };
 
-
 //Function Prototypes
-void fillArray(reduce_t* nums, const unsigned long length);
-void verify_answer(reduce_t* toCheck, reduce_t* answer, const unsigned int len);
-void serial_reduce(reduce_t* a, reduce_t* c, const unsigned int len);
+void fillArray(unsigned char* nums, unsigned long length);
+void verify_answer(unsigned char* toCheck, unsigned char* answer, const unsigned int len);
+void serial_vector_add(unsigned char* a, unsigned char* b, unsigned char* c, const unsigned int len);
 
 void test_setup();
 void test_init();
@@ -124,8 +121,8 @@ cl_kernel create_kernel(const char* filename, const char* kernel, const cl_conte
 	cl_program program = createProgramFromSource(filename, context);
 
 	// Build the program executable
-	//int err = clBuildProgram(program, 1, &device, "-cl-opt-disable", NULL, NULL);
-	int err = clBuildProgram(program, 1, &device, NULL, NULL, NULL);
+	int err = clBuildProgram(program, 1, &device, "-cl-opt-disable", NULL, NULL);
+//	int err = clBuildProgram(program, 1, &device, NULL, NULL, NULL);
 	if (err == CL_BUILD_PROGRAM_FAILURE)
 	{
 		char *log;
@@ -186,7 +183,7 @@ void setupGPU()
 		CHKERR(err, "Failed to create a compute context!");
 		commands_cpu = clCreateCommandQueue(context_cpu, device_id_cpu, 0, &err);
 		CHKERR(err, "Failed to create a command queue!");
-		kernel_compute_cpu = create_kernel(KernelSourceFile_cpu, "compute", context_cpu, device_id_cpu);
+		kernel_compute_cpu = create_kernel(KernelSourceFile, "compute", context_cpu, device_id_cpu);
 	}
 
 	if(scheme != CPU_ONLY)
@@ -195,7 +192,7 @@ void setupGPU()
 		CHKERR(err, "Failed to create a compute context!");
 		commands_gpu = clCreateCommandQueue(context_gpu, device_id_gpu, 0, &err);
 		CHKERR(err, "Failed to create a command queue!");
-		kernel_compute_gpu = create_kernel(KernelSourceFile_gpu, "compute", context_gpu, device_id_gpu);
+		kernel_compute_gpu = create_kernel(KernelSourceFile, "compute", context_gpu, device_id_gpu);
 	}
 
 }
@@ -264,10 +261,9 @@ void* dynamic_scheduler(void* argv)
 
 void test_setup()
 {
-	ans_gpu = 0;
-	ans_cpu = 0;
 	fillArray(h_a, length);
-	serial_reduce(h_a, &h_check, length);
+	fillArray(h_b, length);
+	serial_vector_add(h_a, h_b, h_check, length);
 }
 
 void test_init()
@@ -280,25 +276,34 @@ void test_chunk_setup(cl_context context, cl_command_queue queue, size_t size, s
 		return;
 	cl_mem* d_a = isGPU ? &dg_a : &dc_a;
 	cl_mem* d_b = isGPU ? &dg_b : &dc_b;
-	cl_mem_flags a_flags = CL_MEM_READ_WRITE;
-	cl_mem_flags b_flags = CL_MEM_READ_WRITE;
+	cl_mem* d_c = isGPU ? &dg_c : &dc_c;
+	cl_mem_flags a_flags = CL_MEM_READ_ONLY;
+	cl_mem_flags b_flags = CL_MEM_READ_ONLY;
+	cl_mem_flags c_flags = CL_MEM_WRITE_ONLY;
 	void* a_mem = NULL;
 	void* b_mem = NULL;
+	void* c_mem = NULL;
 
 	if(!isGPU)
 	{
 		a_flags |= CL_MEM_USE_HOST_PTR;
+		b_flags |= CL_MEM_USE_HOST_PTR;
+		c_flags |= CL_MEM_USE_HOST_PTR;
 		a_mem = h_a;
+		b_mem = h_b;
+		c_mem = h_c + offset;
 	}
 
 	int err;
 	*d_a = clCreateBuffer(context, a_flags, sizeof(*h_a) * size, a_mem, &err);
-	CHKERR(err, "Failed to create chunk buffers!");
 	*d_b = clCreateBuffer(context, b_flags, sizeof(*h_b) * size, b_mem, &err);
+	*d_c = clCreateBuffer(context, c_flags, sizeof(*h_c) * size, c_mem, &err);
 	CHKERR(err, "Failed to create chunk buffers!");
 
 	err = clEnqueueWriteBuffer(queue, *d_a, CL_FALSE, 0, sizeof(*h_a) * size, h_a + offset, 0, NULL, NULL);
 	CHKERR(err, "Failed to write chunk buffer A!");
+	err = clEnqueueWriteBuffer(queue, *d_b, CL_FALSE, 0, sizeof(*h_b) * size, h_b + offset, 0, NULL, NULL);
+	CHKERR(err, "Failed to write chunk buffer B!");
 }
 
 void test_chunk_kernel(cl_context context, cl_command_queue queue, cl_device_id device, cl_kernel kernel, size_t size, size_t offset, int isGPU)
@@ -307,34 +312,22 @@ void test_chunk_kernel(cl_context context, cl_command_queue queue, cl_device_id 
 		return;
 	cl_mem* d_a = isGPU ? &dg_a : &dc_a;
 	cl_mem* d_b = isGPU ? &dg_b : &dc_b;
-	size_t chunk = isGPU ? 2 : size;
+	cl_mem* d_c = isGPU ? &dg_c : &dc_c;
 
 	cl_event* event = isGPU ? &event_gpu : &event_cpu;
 
 	size_t local_size;
 	clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &local_size, NULL);
-	if(!isGPU)
-		local_size = 1;
 
 	int err = clSetKernelArg(kernel, 0, sizeof(cl_mem), d_a);
 	err |= clSetKernelArg(kernel, 1, sizeof(cl_mem), d_b);
-	err |= clSetKernelArg(kernel, 2, sizeof(size_t), &size);
-	err |= clSetKernelArg(kernel, 3, sizeof(size_t), &chunk);
-	if(isGPU)
-		err |= clSetKernelArg(kernel, 4, sizeof(reduce_t) * local_size * 2, NULL);
+	err |= clSetKernelArg(kernel, 2, sizeof(cl_mem), d_c);
+	err |= clSetKernelArg(kernel, 3, sizeof(size_t), &size);
 	CHKERR(err, "Errors setting kernel arguments");
 
-	size_t groups = size / local_size / chunk + (size % (local_size*chunk) == 0 ? 0 : 1);
-	size_t global_size = groups * local_size;
+	size_t global_size = (size / local_size) * local_size + (size % local_size == 0 ? 0 : local_size);
 	err = clEnqueueNDRangeKernel(queue, kernel, 1, NULL, &global_size, &local_size, 0, NULL, event);
 	CHKERR(err, "Failed to run kernel!");
-	if(groups != 1)
-	{
-		cl_mem temp = *d_a;
-		*d_a = *d_b;
-		*d_b = temp;
-		test_chunk_kernel(context, queue, device, kernel, groups, offset, isGPU);
-	}
 }
 
 void test_chunk_cleanup(cl_context context, cl_command_queue queue, size_t size, size_t offset, int isGPU)
@@ -343,21 +336,18 @@ void test_chunk_cleanup(cl_context context, cl_command_queue queue, size_t size,
 		return;
 	cl_mem* d_a = isGPU ? &dg_a : &dc_a;
 	cl_mem* d_b = isGPU ? &dg_b : &dc_b;
+	cl_mem* d_c = isGPU ? &dg_c : &dc_c;
 
-	reduce_t* ans = isGPU ? &ans_gpu : &ans_cpu;
-
-	reduce_t answer;
-	int err = clEnqueueReadBuffer(queue, *d_b, CL_TRUE, 0, sizeof(reduce_t), &answer, 0, NULL, NULL);
-	CHKERR(err, "Failed to read back buffer!");
-
-	*ans += answer;
+	int err = clEnqueueReadBuffer(queue, *d_c, CL_TRUE, 0, sizeof(*h_c) * size, h_c + offset, 0, NULL, NULL);
+	CHKERR(err, "Failed to write chunk buffer C!");
+	
 	clReleaseMemObject(*d_a);
 	clReleaseMemObject(*d_b);
+	clReleaseMemObject(*d_c);
 }
 
 void test_cleanup()
 {
-	ans = ans_cpu + ans_gpu;
 	//verify_answer(h_c, h_check, length);
 }
 
@@ -425,8 +415,8 @@ void run_test(float* data_time, float* exec_time, float* total_time)
 		test_chunk_kernel(context_cpu, commands_cpu, device_id_cpu, kernel_compute_cpu, length - gpu_size, 0, 0);
 		clFlush(commands_gpu);
 		clFlush(commands_cpu);
-		//cl_event events[2] = {event_cpu, event_gpu};
-		//clEnqueueWaitForEvents(commands_cpu, 2, events);
+		cl_event events[2] = {event_cpu, event_gpu};
+		clEnqueueWaitForEvents(commands_cpu, 2, events);
 		clFinish(commands_cpu);
 		clFinish(commands_gpu);
 		TIMER_END;
@@ -472,7 +462,7 @@ void run_test(float* data_time, float* exec_time, float* total_time)
 	*total_time = TOTAL_MILLISECONDS;
 }
 
-void fillArray(reduce_t* nums, unsigned long length)
+void fillArray(unsigned char* nums, unsigned long length)
 {
 	int i;
 	for(i = 0; i < length; i++)
@@ -481,21 +471,23 @@ void fillArray(reduce_t* nums, unsigned long length)
 	}
 }
 
-void serial_reduce(reduce_t* a, reduce_t* check, const unsigned int len)
+void serial_vector_add(unsigned char* a, unsigned char* b, unsigned char* c, const unsigned int len)
 {
 	int i;
-	int sum = 0;
 	for(i = 0; i < len; i++)
 	{
-		sum += a[i];
+		c[i] = a[i] + b[i];
 	}
-	*check = sum;
 }
 
-void verify_answer(reduce_t* toCheck, reduce_t* answer, const unsigned int len)
+void verify_answer(unsigned char* toCheck, unsigned char* answer, const unsigned int len)
 {
-	if(*toCheck != *answer)
-		fprintf(stderr,"Answers differ at position (%lu, %lu)\n", *toCheck, *answer);
+	int i;
+	for(i = 0; i < len; i++)
+	{
+		if(toCheck[i] != answer[i])
+			fprintf(stderr,"Answers differ at position %d (%d, %d)\n", i, toCheck[i], answer[i]);
+	}
 }
 
 int main(int argc, char** argv)
@@ -525,6 +517,9 @@ int main(int argc, char** argv)
 			exit(1);
 	}
 	h_a = malloc(sizeof(*h_a) *  length);
+	h_b = malloc(sizeof(*h_b) *  length);
+	h_c = malloc(sizeof(*h_c) *  length);
+	h_check = malloc(sizeof(*h_check) *  length);
 
 	setupGPU();	
 
@@ -537,10 +532,13 @@ int main(int argc, char** argv)
 	int i;
 	for(i = 0; i < iters+warmup; i++)
 	{
+		memset(h_c, 0, sizeof(unsigned char) * length);
+//		vadd_default(h_a, h_b, h_c, length, &data_time, &exec_time);
+//		verify_answer(h_c, h_check, length);	
 		run_test(&data_time, &exec_time, &total_time);
 		if(i >= warmup)
 		{
-			fprintf(stdout,"%d\tReduce\t%s\t%f\t%lu\t%f\t%f\t%f\n", i - warmup, scheme_name, ratio, length, data_time, exec_time, total_time);
+			fprintf(stdout,"%d\tVectorAdd+\t%s\t%f\t%lu\t%f\t%f\t%f\n", i - warmup, scheme_name, ratio, length, data_time, exec_time, total_time);
 		}
 		data_time = 0;
 		exec_time = 0;
@@ -548,5 +546,8 @@ int main(int argc, char** argv)
 
 	fflush(stdout);
 	free(h_a);
+	free(h_b);
+	free(h_c);
+	free(h_check);
 	return 0;
 }
