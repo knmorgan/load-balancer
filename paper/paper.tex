@@ -105,7 +105,7 @@ will incur some amount of synchronization overhead, because shared variables tha
 which chunks of the workload are left must be protected by a lock.  Unlike the static
 load balancer, the dynamic load balancer transfers data throughout the computation.
 The dynamic load balancer is designed to mitigate the primary problem with the static
-load balancer - that the optimal ratio of computation performed on the CPU is
+load balancer -- that the optimal ratio of computation performed on the CPU is
 application-dependent.  A chunk size must be chosen such that the processing units are
 not requesting chunks so frequently that contention for shared variables rise and
 synchronization overhead increases, yet small enough to not allow one processing unit
@@ -237,7 +237,41 @@ GPU.  In each of the figures, it's evident that the GPU performs significantly
 faster than the CPU for the given benchmarks, with the static partitioning
 schemes lying somewhere between the two.
 
-\section{Analysis}
+The only deviation from the above is the reduction benchmark, in which the GPU
+only performs ~14\% faster than the CPU in the 16 MB case (0.104 seconds for the
+GPU, 0.091 seconds for the CPU), and some of the static load balancing schemes
+perform slightly better than just the GPU.  For instance, in the 9 MB and 10 MB
+cases, both the 50\% and 75\% static schemes performed better than just the GPU
+(0.5\% and 4.4\% respective speedups for 9 MB, 1.5\% and 3.6\% respective speedups
+for 10 MB).
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=3.0in]{reduce_static_fused}
+\caption{Reduction Benchmark with Varied Execution Ratio}
+\label{fig:reduce_static_fused}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=3.0in]{vector_static_fused}
+\caption{Vector Add Benchmark with Varied Execution Ratio}
+\label{fig:vector_static_fused}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=3.0in]{vector_plus_static_fused}
+\caption{Vector Add+ Benchmark with Varied Execution Ratio}
+\label{fig:vector_plus_static_fused}
+\end{figure}
+
+Finally, consider Figures \ref{fig:reduce_static_fused}, \ref{fig:vector_static_fused},
+and \ref{fig:vector_plus_static_fused}. In each, the runtim for both the CPU and GPU are
+shown with a 16 MB problem size.  Additionally, a variety of static execution ratios are
+shown between 0.1\% and 99.9\%.  In every benchmark, none of the execution ratios were
+able to achieve a better time than just the GPU.
+
 Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do
 eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut
 enim ad minim veniam, quis nostrud exercitation ullamco laboris
@@ -245,6 +279,72 @@ nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor
 in reprehenderit in voluptate velit esse cillum dolore eu fugiat
 nulla pariatur. Excepteur sint occaecat cupidatat non proident,
 sunt in culpa qui officia deserunt mollit anim id est laborum.
+
+Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut
+enim ad minim veniam, quis nostrud exercitation ullamco laboris
+nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor
+in reprehenderit in voluptate velit esse cillum dolore eu fugiat
+nulla pariatur. Excepteur sint occaecat cupidatat non proident,
+sunt in culpa qui officia deserunt mollit anim id est laborum.
+
+Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut
+enim ad minim veniam, quis nostrud exercitation ullamco laboris
+nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor
+in reprehenderit in voluptate velit esse cillum dolore eu fugiat
+nulla pariatur. Excepteur sint occaecat cupidatat non proident,
+sunt in culpa qui officia deserunt mollit anim id est laborum.
+
+Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut
+enim ad minim veniam, quis nostrud exercitation ullamco laboris
+nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor
+in reprehenderit in voluptate velit esse cillum dolore eu fugiat
+nulla pariatur. Excepteur sint occaecat cupidatat non proident,
+sunt in culpa qui officia deserunt mollit anim id est laborum.
+
+Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut
+enim ad minim veniam, quis nostrud exercitation ullamco laboris
+nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor
+in reprehenderit in voluptate velit esse cillum dolore eu fugiat
+nulla pariatur. Excepteur sint occaecat cupidatat non proident,
+sunt in culpa qui officia deserunt mollit anim id est laborum.
+
+Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut
+enim ad minim veniam, quis nostrud exercitation ullamco laboris
+nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor
+in reprehenderit in voluptate velit esse cillum dolore eu fugiat
+nulla pariatur. Excepteur sint occaecat cupidatat non proident,
+sunt in culpa qui officia deserunt mollit anim id est laborum.
+
+Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut
+enim ad minim veniam, quis nostrud exercitation ullamco laboris
+nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor
+in reprehenderit in voluptate velit esse cillum dolore eu fugiat
+nulla pariatur. Excepteur sint occaecat cupidatat non proident,
+sunt in culpa qui officia deserunt mollit anim id est laborum.
+
+\section{Analysis}
+Based on the times shown in the previous figures, it is clear that the
+static load balancing is ineffective at improving the overal efficiency
+of any of the benchmarks tested.  There were a few scenarios in which
+a specific static execution ratio achieved meager speedup (<5\%) over
+just the GPU, but these situations were scarse, and did not achieve the
+speedup we desired.  Additionally, this small amount of speedup would
+require a significant amount of tine-tuning by a programmer.
+
+Consider the 16 MB vector add benchmark, where the CPU-only case took
+0.07465 seconds to run, and the GPU-only case took 0.02873 second to run.
+Ideally, 72.2\% of the workload would be placed on the GPU, and 27.8\%
+on the CPU.  Assuming no other overhead, this would result in an overall
+runtime of 0.02075 seconds -- a 27.8\% speedup over the GPU.  Using similar
+reasoning, a 43.6\% theoretical speedup is attainable for the reduction
+benchmark.  A measly 2\% would be expected from the vector add+ benchmark,
+because of the vast disparity in the CPU-only and GPU-only runtimes.
 
 \section{Related Work}
 Ryoo et al. discuss optimization strategies for GPU versus CPU runtime
