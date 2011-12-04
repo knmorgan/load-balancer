@@ -136,14 +136,14 @@ architecture is specifically designed for large throughput performance.
 
 The memory hierarchy for the GPU architecture is given by Figure~\ref{fig:gpu_arch}.
 
-\begin{figure}[!t]
+\begin{figure}[t]
 \centering
 \includegraphics[width=2.5in]{cpu_architecture}
 \caption{CPU Architecture}
 \label{fig:cpu_arch}
 \end{figure}
 
-\begin{figure}[!t]
+\begin{figure}[t]
 \centering
 \includegraphics[width=2.5in]{gpu_architecture}
 \caption{GPU Architecture}
@@ -165,14 +165,77 @@ show that the AMD Fusion architecture allows for much faster data transfers
 between CPU and GPU, allowing for an overall improvement in runtime, despite
 reduced compute power on the GPU~\cite{Daga2011}. 
 
+\section{Load Balancing Benchmarks}
+
+For this paper, three different benchmarks were used to assess the
+effectiveness of the load balancer.  The first is a reduction benchmark,
+in which the sum of variably-sized array is computed.  The reduction benchmark
+is unique in that different code is being run on the CPU and the GPU.  The
+reason for this is that the GPU cannot efficiently compute a reduction the way
+a CPU typically would -- due to the relative innefficiency of backward branches
+on the GPU.  A reduction on the GPU is a multi-stage process, in which the
+output of one step is used as the input of the next.  Each steam processor
+computes the reduction of two elements during each iteration, reducing the amount
+of work during each step by a factor of two.  As a result, each step utilizes half
+the stream processors of the previous step.  This continues until the reduction
+operation is only done by a single stream processor.  A natural consequence of
+this algorithm is that not all of the stream processors will be utilized during
+the computation.
+
+The next benchmark is a simple vector addition operation that computes the sum
+of two input vectors, and stores the result into an output vector.  The third
+benchmark, referred henceforth as the ``Vector Add+'' benchmark, is similar to
+the Vector Add benchmark, but it computes 1000 additions before storing the result
+in the output vector.  The motivation behind this benchmark is to reduce memory
+access overhead with more computation.
+
 \section{Results}
-Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do
-eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut
-enim ad minim veniam, quis nostrud exercitation ullamco laboris
-nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor
-in reprehenderit in voluptate velit esse cillum dolore eu fugiat
-nulla pariatur. Excepteur sint occaecat cupidatat non proident,
-sunt in culpa qui officia deserunt mollit anim id est laborum.
+\begin{figure}[t]
+\centering
+\includegraphics[width=3.0in]{static_discrete}
+\caption{Varying Data Ratio with a Discrete GPU}
+\label{fig:static_discrete}
+\end{figure}
+
+Consider Figure \ref{fig:static_discrete}, where the amount of data
+executed on the GPU is varied between 90\% and 100\%.  The total execution
+time including data transfers has an obvious downward trend as more
+data is executed on the GPU.  However, there are a couple of static
+ratios which yielded better performance than executing all of the data
+on the GPU.  Most notably, when only 98.6\% of the data was executed on
+the GPU.  In this instance, the overall execution time was 325.27 seconds,
+compared to 333.31 seconds with only the GPU -- a ~2.4\% speedup.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=3.0in]{reduce_fused}
+\caption{Reduction Benchmark on an APU Architecture}
+\label{fig:reduce_fused}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=3.0in]{vector_fused}
+\caption{Vector Add Benchmark on an APU Architecture}
+\label{fig:vector_fused}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=3.0in]{vector_plus_fused}
+\caption{Vector Add+ Benchmark on an APU Architecture}
+\label{fig:vector_plus_fused}
+\end{figure}
+
+Next, consider Figures \ref{fig:reduce_fused}, \ref{fig:vector_fused}, and
+\ref{fig:vector_plus_fused}. The figures demonstrate a variety of different
+load balancing options for the Reduction, Vector Add, and Vector Add+
+benchmarks, across data sizes ranging between 1 MB and 16 MB.  Each figure
+depicts the total execution time for the CPU-only and GPU-only computations,
+as well as static load balancing with 25\%, 50\%, and 75\% of the data on the
+GPU.  In each of the figures, it's evident that the GPU performs significantly
+faster than the CPU for the given benchmarks, with the static partitioning
+schemes lying somewhere between the two.
 
 \section{Analysis}
 Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do
