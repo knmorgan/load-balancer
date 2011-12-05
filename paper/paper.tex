@@ -472,6 +472,19 @@ running the GPU kernel to completion, then scheduling the CPU kernel again
 and letting it run to completion.  Thus, the profiler's record of the runtime
 of the CPU kernel would include the runtime of the GPU kernel.
 
+With regard to the discrete GPU platform and the fused CPU+GPU platform, it
+seems that the fused platform has some advantages.  For instance, consider 
+Figures \ref{fig:reduction_discrete} and \ref{fig:reduction_fused}.  Although
+we will not compare overall runtimes of the two benchmarks, we can see that
+the GPU of the fused platform performed better than the GPU of the discrete
+platform relative to their CPUs.  That is, the CPU outperformed the GPU on
+the reduction benchmark on the discrete GPU architecture, but the converse
+was true of the fused platform.  This may be due to the fact that the fused
+platform shares memory between the CPU and GPU, which lowers data transfer
+times between the two devices.  On the discrete GPU system, the GPU typically
+experienced significant data transfer times for the GPU, and the effect of
+this would be minimized on the fused platform.
+
 \section{Related Work}
 Ryoo et al. discuss optimization strategies for GPU versus CPU runtime
 systems~\cite{Ryoo2007}.  However, their research is based on a GPU-only
@@ -618,7 +631,15 @@ Based on the CPU-only and GPU-only runtimes of each benchmark, we were able to c
 optimal static data partitioning, such that the computations on the CPU and GPU took equal
 time to complete.  Based on the disparity of runtimes between the CPU-only and GPU-only
 results, the optimal runtimes ranged from a 2\% to nearly a 45\% speedup over just the GPU
-alone.  Unfortunately,
+alone.  Unfortunately, none of these theoretical results were supported in practice.  It seems
+to be a limitation of OpenCL that it will not run kernels on different devices in parallel,
+which effectively renders our load balancing schemes pointless.
+
+Additionally, it seems that a fused CPU+GPU architecture may provide some performance benefits
+over just a discrete GPU architecture.  Our results shows that the GPU outperformed the CPU on
+the fused platform's reduction benchmark, but this was not the case for the discrete GPU platform.
+However, as the CPUs and GPUs differed significantly between the two testing environments, we
+cannot say definitively that one architecture will always be better than the other.
 
 
 \begin{thebibliography}{1}
