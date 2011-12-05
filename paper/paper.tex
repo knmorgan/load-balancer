@@ -444,32 +444,43 @@ on the fused platform.  It is also the case that the SIMD engine on the Fusion A
 is slightly more powerful than the discrete GPU that we have used for testing, allowing
 kernel execution times on the APU to be lower than that of the discrete GPU.
 
-%\begin{figure}[t]
-%\centering
-%\includegraphics[width=3.0in]{reduce_static_fused}
-%\caption{Reduction Benchmark with Varied Execution Ratio}
-%\label{fig:reduce_static_fused}
-%\end{figure}
+\begin{figure}[t]
+\centering
+\includegraphics[width=3.0in]{reduce_static_fused}
+\caption{Reduction Benchmark with Varied Execution Ratio}
+\label{fig:reduce_static_fused}
+\end{figure}
 
-%\begin{figure}[t]
-%\centering
-%\includegraphics[width=3.0in]{vector_static_fused}
-%\caption{Vector Add Benchmark with Varied Execution Ratio}
-%\label{fig:vector_static_fused}
-%\end{figure}
+\begin{figure}[t]
+\centering
+\includegraphics[width=3.0in]{vector_static_fused}
+\caption{Vector Add Benchmark with Varied Execution Ratio}
+\label{fig:vector_static_fused}
+\end{figure}
 
-%\begin{figure}[t]
-%\centering
-%\includegraphics[width=3.0in]{vector_plus_static_fused}
-%\caption{Vector Add+ Benchmark with Varied Execution Ratio}
-%\label{fig:vector_plus_static_fused}
-%\end{figure}
+\begin{figure}[t]
+\centering
+\includegraphics[width=3.0in]{vector_plus_static_fused}
+\caption{Vector Add+ Benchmark with Varied Execution Ratio}
+\label{fig:vector_plus_static_fused}
+\end{figure}
 
 %Finally, consider Figures \ref{fig:reduce_static_fused}, \ref{fig:vector_static_fused},
-%and \ref{fig:vector_plus_static_fused}. In each, the runtim for both the CPU and GPU are
+%and \ref{fig:vector_plus_static_fused}. In each, the runtime for both the CPU and GPU are
 %shown with a 16~MB problem size.  Additionally, a variety of static execution ratios are
 %shown between 0.1\% and 99.9\%.  In every benchmark, none of the execution ratios were
 %able to achieve a better time than just the GPU.
+
+Finally, consider Figure \ref{fig:vector_static_fused}, where the overall runtime
+for the static load balancer is compared against both the CPU-only and GPU-only
+runtimes for 0.1\%, 1\%, 10\%, 25\%, 50\%, 75\%, 99\%, and 99.9\% static data
+ratios for the 16~MB vector add benchmark.  Figures \ref{fig:reduce_static_fused}
+and \ref{fig:vector_plus_static_fused} show similar results for the reduction and
+vector add+ benchmarks.  In these benchmarks, the downward trend as more data is
+executed on the GPU becomes more evident.  What's also interesting is that the
+static load balancer actually performs worse than the CPU-only case when only a
+small amount of the data ($\leq$1\%) is executed on the CPU in the reduction and
+vector add benchmarks.
 
 Based on the times shown in the previous figures, it is clear that the
 static load balancing is ineffective at improving the overall efficiency
