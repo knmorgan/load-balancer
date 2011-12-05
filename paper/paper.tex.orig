@@ -287,10 +287,7 @@ not allowing other kernels to execute on open SMs.  This creates and issue where
 size of the work chunks should be considered.  One one hand, larger work chunks can
 provide for better performance for each device, as it will allow more workgroups to
 hide the cost of a long-running workgroup.  However, large chunk sizes can reduce
-the granularity of load-balancing between the devices.  Alternatively, smaller chunk
-sizes alleviates the problem of one device receiving a disproportionate amount of the
-work, but can increase scheduling overhead by increasing contention for the shared
-variable which tracks the remaining workload.
+the granularity of load-balancing between the devices.
 
 \begin{figure}[t]
 \centering
@@ -325,6 +322,12 @@ First, the reduction benchmark was run on the discrete GPU platform with a varie
 different data sizes and load balancing policies, as shown in Figure \ref{fig:reduce_discrete}.
 Interestingly, the CPU outperformed the GPU on this particular benchmark.  This is likely
 due to the GPU not utilizing all of its stream processors during a reduction operation, as
+<<<<<<< HEAD
+discussed previously.  Unfortunately, none of the static load balancing schemes were able
+to outperform just the CPU; all the static times were somewhere in between the CPU-only and
+GPU-only times.  Additionally, the dynamic load balancing scheme performed significantly
+worse than all the other schemes, and more than 100\% worse than just the CPU.
+=======
 discussed previously.  It is also the case that the large amount of synchronization that must
 occur in each iteration of the GPU reduction, and the number of kernel launches required for
 each iteration that is not present in the CPU reduction. In addition, because the CPU had better
@@ -336,6 +339,7 @@ scheme performed significantly worse than all the other schemes, and more than 1
 worse than just the CPU.  The cause for this degredation in performance was likely due to the
 overhead of scheduling threads and communciation between those threads, as well as moving data to
 the GPU in small chunks when the GPU showed very poor performance compared to the CPU.
+>>>>>>> 9db4fb6971bdc9ebc4811547b68aad1e6cfaebc4
 
 \begin{figure}[t]
 \centering
