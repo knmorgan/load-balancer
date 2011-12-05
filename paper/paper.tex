@@ -568,13 +568,41 @@ the whole system, instead of optimizing a single application's performance.
 
 
 \section{Conclusion}
-Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do
-eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut
-enim ad minim veniam, quis nostrud exercitation ullamco laboris
-nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor
-in reprehenderit in voluptate velit esse cillum dolore eu fugiat
-nulla pariatur. Excepteur sint occaecat cupidatat non proident,
-sunt in culpa qui officia deserunt mollit anim id est laborum.
+It is clear that our original hypotheses were not supported by our results.  That
+is, we were not able to see consistent, significant speedup from any of our load
+balancing schemes.  In many scenarios, the GPU simply outperformed the CPU, with
+the static load balancing schemes falling somewhere between the two, and the dynamic
+load balancer being far worse than anything else.  There were only two notable
+exceptions to this trend.  The first was the reduction benchmark on the discrete GPU
+platform, where the CPU outperformed the GPU due to the low stream processor utilization
+inherent in a GPU reduction implementation.  However, the static load balancing schemes
+were still outperformed by the CPU in this case, so no overall speedup was gained. The
+second exception was the vector add+ benchmark on the discrete GPU platform, where the
+dynamic load balancer actually outperformed the tested static load balancing schemes.
+However, this was due to the vast disparity in the GPU and CPU runtimes for this
+particular benchmark; giving any significant amount of data to the CPU would hurt
+performance.  With the dynamic load balancer, the CPU will only compute a few blocks
+of data, rather than 25\% or more with the static load balancer.
+
+When analyzing more finely-grained static execution ratios, we found that, in the case
+where the GPU outperforms the CPU, there is always a downward trend in overall runtime
+as more data is executed on the GPU.  There were a couple sparse instances where a static
+execution ratio performed better than using just the GPU, but we chalked these up to
+typical variability in runtimes due to their infrequency and minute performance improvements.
+
+When analyzing the results, we considered the possibility that the CPU and GPU kernels were
+actually running in serial, which would explain the performance trends we were seeing in our
+static and dynamic load balancing schemes.  An AMD profiler was used to find out the times each
+kernel took to compute, and the sum of these times was compared to the actual runtime of the
+benchmark.  We found that the actual runtime of the benchmark was typically slightly more than
+the sum of the runtimes of each kernel, which seemed to indicate that the kernels were indeed
+running serially, with some overhead for data transfer times.
+
+Based on the CPU-only and GPU-only runtimes of each benchmark, we were able to calculate an
+optimal static data partitioning, such that the computations on the CPU and GPU took equal
+time to complete.  Based on the disparity of runtimes between the CPU-only and GPU-only
+results, the optimal runtimes ranged from a 2\% to nearly a 45\% speedup over just the GPU
+alone.  Unfortunately,
 
 \begin{thebibliography}{1}
 
