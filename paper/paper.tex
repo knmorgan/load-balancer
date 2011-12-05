@@ -174,12 +174,21 @@ for a SIMD engine, the basis for a GPU processor.  The APU has a
 shared memory between the CPU and SIMD engine, in which accesses
 are facilitated through a high-speed memory controller.  The AMD
 Fusion technology is an example of this type of architecture~\cite{AMDFusion}.
+Because of the limited space on the CPU die, the overall performance
+capabilities of the CPU and GPU are often more limited than on a traditional 
+discrete CPU and GPU architecture.
 
 One of the main benefits of the APU is the elimination of the PCI-e
 bus, which allows for much faster transfer between CPU and GPU.  Daga et al.
 show that the AMD Fusion architecture allows for much faster data transfers
 between CPU and GPU, allowing for an overall improvement in runtime, despite
-reduced compute power on the GPU~\cite{Daga2011}. 
+reduced compute power on the GPU~\cite{Daga2011}.  The improvment of the 
+data transfer times greatly improves the applicability of the GPU for use
+in general computing paradigms, specifically that of CPU+GPU co-processing.
+Decreasing the data trasnsfer time reduces the penalty associated with migrating
+computation to the GPU, and therefore can access the computation of the GPU
+more at will then in discrete GPUs which are bound by the slow access speeds
+of the PCI-e bus.
 
 \section{Load Balancing Benchmarks}
 For this paper, three different benchmarks were used to assess the
@@ -667,7 +676,7 @@ typical variability in runtimes due to their infrequency and minute performance 
 
 When analyzing the results, we considered the possibility that the CPU and GPU kernels were
 actually running in serial, which would explain the performance trends we were seeing in our
-static and dynamic load balancing schemes.  An AMD profiler was used to find out the times each
+static and dynamic load balancing schemes.  An OpenCL profiler was used to find out the times each
 kernel took to compute, and the sum of these times was compared to the actual runtime of the
 benchmark.  We found that the actual runtime of the benchmark was typically slightly more than
 the sum of the runtimes of each kernel, which seemed to indicate that the kernels were indeed
