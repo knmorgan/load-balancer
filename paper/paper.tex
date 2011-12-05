@@ -241,18 +241,34 @@ a GPU-only solution.  These schemes are illustrated in Figure~/ref{fig:schedulin
 
 The first load balancing scheme that was implemented was a static division of work between
 the CPU and the GPU at a specified ratio.  This ratio was user-defined allowing for best 
-performance after runtime benchmarking.  The main cause of overhead for this method of
-load-balancing is that of a varying workload.  If the workload for the kernel is imbalanced
+performance after runtime benchmarking (i.e. the precentage of work done on the CPU and GPU).
+The cases of CPU-only and GPU-only scheduling are just special cases of this scheduler, of
+the ratios 0 and 1 respectively.
+
+The static load-balancing scheme benefits from the low overhead of only have to launch the
+kernels on each device only once, as opposed to more complex load-balancing schemes.  This
+increases the amount of work to be done at one time, as workgroups that retire are immediately
+replaced by newer workgroups from the larger queue. The main cause of overhead for this method
+of load-balancing is that of a varying workload.  If the workload for the kernel is imbalanced
 between workgroups, it is impossible to statically determine the proper amount of work
 to put on each kernel.  Improper allocation of work to each device will not allow both
 devices to be fully utilized, and application performance will not be optimal.
 
 To address the issue of a dynamic work load between workgroups for kernels, we also used
 a dynamic load-balancing scheme.  In this scheme the workgroups were grouped into larger
-chunks.  Each device is initially allocated one chunk of work to work on.  As each chunk
-is retired by the device a new chunk is allocated.  This load-balancing scheme will still
-not guarantee optimal performance.  Within a work chunk, a single long-running workgroup
-can hold up the entire device, not allowing other kernels to execute on open SMs.
+chunks.  Each device is initially allocated one chunk of work to work on, and as each chunk
+is retired by the device a new chunk is allocated.  Each device is given a seperate hardware
+thread, and the thread will wait until the current chunk is finished, then it will synchronize
+through a shared variable to acquire the next chunk of work for the device.  This process
+will continue until the work queue is out of work. 
+
+The dynamic load-balancing scheme will still not guarantee optimal performance.
+Within a work chunk, a single long-running workgroup can hold up the entire device,
+not allowing other kernels to execute on open SMs.  This creates and issue where the
+size of the work chunks should be considered.  One one hand, larger work chunks can
+provide for better performance for each device, as it will allow more workgroups to
+hide the cost of a long-running workgroup.  However, large chunk sizes can reduce
+the granularity of load-balancing between the devices.
 
 \begin{figure}[t]
 \centering
