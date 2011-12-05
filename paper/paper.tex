@@ -23,7 +23,7 @@
 \maketitle
 
 \begin{abstract}
-Leveraging maximimum performance from specialized hardware is one of the
+Leveraging maximum performance from specialized hardware is one of the
 major problems facing computer scientists today.  General-purpose computing
 on graphics processing units (GPGPU) is a technique that is becoming
 increasingly popular for handling computations typically performed by the
@@ -59,7 +59,7 @@ utilization of resources and therefore increase overall program performance.
 GPU+CPU co-processing hardly a new idea.  Jimenez et al.~\cite{Jimenez2009} present a
 dynamic library which can be used in a system to dynamically schedule tasks for GPU
 computation across various processes. The method described only looks at optimizing
-usage of the GPU across the whole system, rather than optimizing a single application’s
+usage of the GPU across the whole system, rather than optimizing a single applications
 performance. The StarPU system, on the other hand, presents a method of co-processing
 and load balancing on a per application basis~\cite{Augonnet2009}. They show that by
 using an appropriate model for the load balancing, they are able to achieve improvements
@@ -138,16 +138,16 @@ numbers of threads can be easily created an run on a GPU.  Large register files
 enable tens of thousands of threads to be run on today's GPU architecture with
 very little penalty for context switching.
 
-Groups of proccessing units, Streaming Multiprocessors (SMs), share a single instruction
+Groups of processing units, Streaming Multiprocessors (SMs), share a single instruction
 dispatch unit and operate in lock step.  The threads themselves run on each SM
-in a group, called a warp, typically of 32 threads.  Because of these architectual
+in a group, called a warp, typically of 32 threads.  Because of these architectural
 features divergent branching in a warp (caused by if-else clauses) greatly degrade application
 performance.
 
 The memory architecture for the GPU is very different than that found on the CPU. 
 Instead of a large hierarchy of caches to hide memory latency for single thread
-performance the latecy to memory is instead hidden through aggressive context
-switching.  Newer GPU architectures may contain primative caching schemes.
+performance the latency to memory is instead hidden through aggressive context
+switching.  Newer GPU architectures may contain privative caching schemes.
 Each SM on the GPU also contains a local memory memory space which can accessed 
 at much lower latency .  This memory space is typically used as a user-managed
 cache. The memory hierarchy for the GPU architecture is given by Figure~\ref{fig:gpu_arch}.
@@ -182,13 +182,12 @@ between CPU and GPU, allowing for an overall improvement in runtime, despite
 reduced compute power on the GPU~\cite{Daga2011}. 
 
 \section{Load Balancing Benchmarks}
-
 For this paper, three different benchmarks were used to assess the
 effectiveness of the load balancer.  The first is a reduction benchmark,
 in which the sum of variably-sized array is computed.  The reduction benchmark
 is unique in that different code is being run on the CPU and the GPU.  The
 reason for this is that the GPU cannot efficiently compute a reduction the way
-a CPU typically would -- due to the relative innefficiency of backward branches
+a CPU typically would -- due to the relative inefficiency of backward branches
 on the GPU.  A reduction on the GPU is a multi-stage process, in which the
 output of one step is used as the input of the next.  Each steam processor
 computes the reduction of two elements during each iteration, reducing the amount
@@ -210,8 +209,8 @@ and data size.
 \section{Load Balancing Schemes}
 A naive implementation of CPU+GPU co-processing will in many cases lead to an imbalance
 of work for either the CPU or GPU.  To deal with this problem we will investigate the
-use of 2 different load balancing schemes in addtion to the performance of a CPU-only or
-a GPU-only solution.
+use of 2 different load balancing schemes in addition to the performance of a CPU-only or
+a GPU-only solution.  These schemes are illustrated in Figure~/ref{fig:scheduling}
 
 The first load balancing scheme that was implemented was a static division of work between
 the CPU and the GPU at a specified ratio.  This ratio was user-defined allowing for best 
@@ -222,13 +221,27 @@ to put on each kernel.  Improper allocation of work to each device will not allo
 devices to be fully utilized, and application performance will not be optimal.
 
 To address the issue of a dynamic work load between workgroups for kernels, we also used
-a dynamic load-balancing scheme.  In this scheme the worksgroups were grouped into larger
+a dynamic load-balancing scheme.  In this scheme the workgroups were grouped into larger
 chunks.  Each device is initially allocated one chunk of work to work on.  As each chunk
 is retired by the device a new chunk is allocated.  This load-balancing scheme will still
-not guarentee optimal performance.  Within a work chunk, a single long-running workgroup
+not guarantee optimal performance.  Within a work chunk, a single long-running workgroup
 can hold up the entire device, not allowing other kernels to execute on open SMs.
 
+\begin{figure}[t]
+\centering
+\includegraphics[width=2.5in]{scheduling}
+\caption{Data Partitioning Schemes for Load Balancing.}
+\label{fig:scheduling}
+\end{figure}
+
 \section{Results and Analysis}
+We tested the different benchmark applications using different hardware environments.
+For the discrete GPU tests, we tested our application on an Intel Core Duo CPU with a
+AMD HD5450 GPU attached via PCIe.  For the Fused CPU+GPU environment we used an AMD
+Fusion A-3850.  Linux was used for the discrete environment, while Windows was used
+on the Fused environment (in order to take advantage of newer drivers that allowed
+for better hardware features on the new Fusion machine).  
+
 The three implemented benchmarks were run on a system with a discrete GPU, as well as
 on a fused GPU platform.  In dynamic load balancing benchmarks, a chunk size of 80~KB
 was used.  Dynamic results are only given for the discrete GPU testing environment,
@@ -248,7 +261,7 @@ different data sizes and load balancing policies, as shown in Figure \ref{fig:re
 Interestingly, the CPU outperformed the GPU on this particular benchmark.  This is likely
 due to the GPU not utilizing all of its stream processors during a reduction operation, as
 discussed previously.  Unfortunately, none of the static load balancing schemes were able
-to outperform just the CPU; all the static times were somewhere inbetween the CPU-only and
+to outperform just the CPU; all the static times were somewhere in between the CPU-only and
 GPU-only times.  Additionally, the dynamic load balancing scheme performed significantly
 worse than all the other schemes, and more than 100\% worse than just the CPU.
 100\% worse than just the CPU.
@@ -264,7 +277,7 @@ Now, consider Figure \ref{fig:vector_discrete}, where the vector add benchmark w
 the discrete GPU platform.  In this case, we see that the GPU has nearly a 4x speedup over
 just the CPU.  However, similar to the reduction benchmark, the static load balancing schemes
 never outperform just the GPU alone, with all of them lying somewhere between the CPU-only
-and GPU-only runs.  Also similar to the reduction benchmark, the dynamic load balanching scheme
+and GPU-only runs.  Also similar to the reduction benchmark, the dynamic load balancing scheme
 performs significantly worse than all the other schemes.
 
 \begin{figure}[t]
@@ -373,10 +386,10 @@ true of the reduction benchmark on the discrete GPU platform.
 %able to achieve a better time than just the GPU.
 
 Based on the times shown in the previous figures, it is clear that the
-static load balancing is ineffective at improving the overal efficiency
+static load balancing is ineffective at improving the overall efficiency
 of any of the benchmarks tested.  There were a few scenarios in which
 a specific static execution ratio achieved meager speedup (<5\%) over
-just the GPU, but these situations were scarse, and did not achieve the
+just the GPU, but these situations were scarce, and did not achieve the
 speedup we desired.  Additionally, this small amount of speedup would
 require a significant amount of tine-tuning by a programmer.
 
@@ -397,12 +410,12 @@ because of the vast disparity in the CPU-only and GPU-only runtimes.
 \end{figure}
 
 The above results have lead us to believe that the CPU and GPU kernels are
-not running truely in parallel as we initially believed.  As such, we used
+not running truly in parallel as we initially believed.  As such, we used
 an AMD profiler to report how long each of the kernels took using the static
 load balancer with 95\% of the data on the CPU.  Figure \ref{fig:sequential_discrepancy}
 shows the discrepancy between the actual total runtime of the vector add
 benchmark and the expected runtime (that is, the sum of the CPU kernel runtime
-and the GPU kernel runtime).  If the kernels were truely running in parallel,
+and the GPU kernel runtime).  If the kernels were truly running in parallel,
 we would expect to see a negative discrepancy between the actual runtime and
 expected runtime.
 
@@ -423,7 +436,7 @@ or CPU-only implementation instead of a heterogeneous approach.  The work
 presented in ~\cite{Jablin2011} describes a runtime and compiled framework
 for improving memory access latency and reducing data transfer overhead
 for GPU kernels.  Our work differs from this, because the kernel execution
-was still being performed soley on the GPU, whereas our work investigates
+was still being performed solely on the GPU, whereas our work investigates
 kernel execution on multiple devices.
 
 Computation via heterogeneous systems is a relatively new research area for
@@ -436,7 +449,7 @@ is one of the most difficult parts of the system, because of the various
 overheads for work-sharing schemes. We simplify this work, by looking at a
 two-device system, and focus on the performance characteristics of different
 scheduling scheme.  Verner et al. use this approach to create a high-throughput
-low-lantecy heterogeneous encryption system~\cite{Verner2011}. 
+low-latency heterogeneous encryption system~\cite{Verner2011}. 
 
 Jimenez et al.~\cite{Jimenez2009} present a dynamic library which can be used
 in a system to dynamically schedule tasks for GPU computation across various
