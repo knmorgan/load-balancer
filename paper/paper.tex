@@ -301,8 +301,8 @@ We tested the different benchmark applications using different hardware environm
 For the discrete GPU tests, we tested our application on an Intel Core Duo CPU with a
 AMD HD5450 GPU attached via PCIe.  For the Fused CPU+GPU environment we used an AMD
 Fusion A-3850.  Linux was used for the discrete environment, while Windows was used
-on the Fused environment (in order to take advantage of newer drivers that allowed
-for better hardware features on the new Fusion machine).  
+on the Fused environment in order to take advantage of newer drivers that allowed
+for better hardware features on the new Fusion machine.  
 
 The three implemented benchmarks were run on a system with a discrete GPU, as well as
 on a fused GPU platform.  In dynamic load balancing benchmarks, a chunk size of 80~KB
@@ -322,11 +322,17 @@ First, the reduction benchmark was run on the discrete GPU platform with a varie
 different data sizes and load balancing policies, as shown in Figure \ref{fig:reduce_discrete}.
 Interestingly, the CPU outperformed the GPU on this particular benchmark.  This is likely
 due to the GPU not utilizing all of its stream processors during a reduction operation, as
-discussed previously.  Unfortunately, none of the static load balancing schemes were able
-to outperform just the CPU; all the static times were somewhere in between the CPU-only and
-GPU-only times.  Additionally, the dynamic load balancing scheme performed significantly
-worse than all the other schemes, and more than 100\% worse than just the CPU.
-100\% worse than just the CPU.
+discussed previously.  It is also the case that the large amount of synchronization that must
+occur in each iteration of the GPU reduction, and the number of kernel launches required for
+each iteration that is not present in the CPU reduction. In addition, because the CPU had better
+performance on the kernel alone, it saw an even greater improvement when the data transfer costs
+were considered, with the CPU-only case requiring no data movement at all. Unfortunately, none of
+the static load balancing schemes were able to outperform the CPU-only scheme; all the static times were
+somewhere in between the CPU-only and GPU-only times.  Additionally, the dynamic load balancing
+scheme performed significantly worse than all the other schemes, and more than 100\%
+worse than just the CPU.  The cause for this degredation in performance was likely due to the
+overhead of scheduling threads and communciation between those threads, as well as moving data to
+the GPU in small chunks when the GPU showed very poor performance compared to the CPU.
 
 \begin{figure}[t]
 \centering
@@ -335,10 +341,11 @@ worse than all the other schemes, and more than 100\% worse than just the CPU.
 \label{fig:vector_discrete}
 \end{figure}
 
-Now, consider Figure \ref{fig:vector_discrete}, where the vector add benchmark was run on
+Now, consider Figure \ref{fig:vector_discrete}, where the VectorAdd benchmark was run on
 the discrete GPU platform.  In this case, we see that the GPU has nearly a 4x speedup over
-just the CPU.  However, similar to the reduction benchmark, the static load balancing schemes
-never outperform just the GPU alone, with all of them lying somewhere between the CPU-only
+just the CPU.  The data parallelism and lack of any synchronization requirements makes this
+speedup over the CPU possible.  However, similar to the reduction benchmark, the static load balancing schemes
+never outperform just the GPU-only scheme, with all of them lying somewhere between the CPU-only
 and GPU-only runs.  Also similar to the reduction benchmark, the dynamic load balancing scheme
 performs significantly worse than all the other schemes.
 
@@ -349,14 +356,20 @@ performs significantly worse than all the other schemes.
 \label{fig:vector_plus_discrete}
 \end{figure}
 
-The results for the vector add+ benchmark on the discrete GPU platform are shown in Figure
+The results for the VectorAdd+ benchmark on the discrete GPU platform are shown in Figure
 \ref{fig:vector_plus_discrete}.  There are a few notable trends in this figure that are not
 present in the previous two.  The first is is how drastically the GPU outperforms the CPU --
-with over a 100x speedup over just the CPU with 16~MB of data.  The second is that the
+with over a 100x speedup over just the CPU with 16~MB of data.  Because of the very large
+amount of computation that needs to be performed, compared to the low amount of data accesses
+required in the kernel (3 data accesses for 1000 additions), the GPU is able to outperform
+the CPU because of its very large throughput for computationally intensive kernels.  The second 
+thing to notice for this benchmark specificially is that the
 dynamic load balancing drastically outperforms the static load balancing schemes.  This is
 almost certainly because the GPU so drastically outperforms the CPU.  With the dynamic load
 balancing scheme, only small chunks of data are given to the CPU at a time, rather than a
-static percentage.
+static percentage, allowing for the GPU to take advantage of much more of its speedup over
+the CPU. Increasing the chunk size for the GPU (taking two chunks instead of one at a time)
+would likely yield in a greater speedup for the dynamic load-balancing case.
 
 \begin{figure}[t]
 \centering
@@ -367,7 +380,8 @@ static percentage.
 
 For the above figures, the static load balancer was run with three different
 data ratios run on the GPU -- 25\%, 50\%, and 75\%.  The general trend was that
-as more of the workload was placed on the GPU, the runtime improved.  As a
+as more of the workload was placed on the GPU, the runtime improved, with
+an exception in the Reduce benchmark due to the superior CPU performance.  As a
 result, we run the vector add benchmark again with a high granularity of data
 ratios.  Figure \ref{fig:static_discrete} shows  this benchmark on the discrete
 GPU platform with between 90\% and 100\% of the data on the GPU, with a 0.1\%
@@ -377,7 +391,8 @@ there are a couple of static ratios which yielded better performance than
 executing all of the data on the GPU.  Most notably, when only 98.6\% of the
 data was executed on the GPU.  In this instance, the overall execution time was
 325.27 seconds, compared to 333.31 seconds with only the GPU -- a ~2.4\%
-speedup.  However, these few instances of speedup may simply be due to variability.
+speedup.  However, these few instances of speedup may simply be due to variability in
+the system.
 
 \begin{figure}[t]
 \centering
@@ -402,13 +417,15 @@ speedup.  However, these few instances of speedup may simply be due to variabili
 
 Next, consider Figures \ref{fig:reduce_fused}, \ref{fig:vector_fused}, and
 \ref{fig:vector_plus_fused}. The figures demonstrate a variety of different
-load balancing options for the Reduction, Vector Add, and Vector Add+
-benchmarks, across data sizes ranging between 1~MB and 16~MB.  Each figure
-depicts the total execution time for the CPU-only and GPU-only computations,
+load balancing options for the Reduction, VectorAdd, and VectorAdd+
+benchmarks, across data sizes ranging between 1~MB and 16~MB on a Fused CPU+GPU platform.
+Each figure depicts the total execution time for the CPU-only and GPU-only computations,
 as well as static load balancing with 25\%, 50\%, and 75\% of the data on the
 GPU.  In each of the figures, it's evident that the GPU performs significantly
 faster than the CPU for the given benchmarks, with the static partitioning
-schemes lying somewhere between the two.
+schemes lying somewhere between the two.  As you can see in the figures, while the
+overall performance numbers have changed between the discrete and fused architectures
+the major trends from the previous graphs still hold true.
 
 The only deviation from the above is the reduction benchmark, in which the GPU
 only performs ~14\% faster than the CPU in the 16~MB case (0.104 seconds for the
@@ -416,9 +433,13 @@ GPU, 0.091 seconds for the CPU), and some of the static load balancing schemes
 perform slightly better than just the GPU.  For instance, in the 9~MB and 10~MB
 cases, both the 50\% and 75\% static schemes performed better than just the GPU
 (0.5\% and 4.4\% respective speedups for 9~MB, 1.5\% and 3.6\% respective speedups
-for 10~MB). What is also interested to note is that on the fused CPU+GPU architecture,
+for 10~MB). What is also interesting to note is that on the fused CPU+GPU architecture,
 the GPU outperformed the CPU on the reduction benchmark.  However, the opposite was
-true of the reduction benchmark on the discrete GPU platform.
+true of the reduction benchmark on the discrete GPU platform.  The difference in this
+performance was likely due to the increased transfer speeds between the CPU and GPU
+on the fused platform.  It is also the case that the SIMD engine on the Fusion APU
+is slightly more powerful than the discrete GPU that we have used for testing, allowing
+kernel execution times on the APU to be lower than that of the discrete GPU.
 
 %\begin{figure}[t]
 %\centering
@@ -473,13 +494,19 @@ because of the vast disparity in the CPU-only and GPU-only runtimes.
 
 The above results have lead us to believe that the CPU and GPU kernels are
 not running truly in parallel as we initially believed.  As such, we used
-an AMD profiler to report how long each of the kernels took using the static
+the OpenCL profiling capabilities to report how long each of the kernels took using the static
 load balancer with 95\% of the data on the CPU.  Figure \ref{fig:sequential_discrepancy}
 shows the discrepancy between the actual total runtime of the vector add
-benchmark and the expected runtime (that is, the sum of the CPU kernel runtime
+benchmark and the expected runtime of sequential calls to the kernels 
+(that is, the sum of the CPU kernel runtime
 and the GPU kernel runtime).  If the kernels were truly running in parallel,
 we would expect to see a negative discrepancy between the actual runtime and
-expected runtime.
+expected runtime.  It was impossible for us to simply time the start and end
+times of the different kernels, because while that information was available
+for each kernel launch, it was kept as device-speciifc times. We could not
+reconcile the two different timing schemes, because of the different clock
+frequencies and the lack of a mapping from time from clock start for either
+device.
 
 Many of the trials produced a small positive discrepancy.  There were only
 two trials which produced a negative discrepancy; however, these trials
@@ -493,7 +520,7 @@ of the CPU kernel would include the runtime of the GPU kernel.
 
 With regard to the discrete GPU platform and the fused CPU+GPU platform, it
 seems that the fused platform has some advantages.  For instance, consider 
-Figures \ref{fig:reduction_discrete} and \ref{fig:reduction_fused}.  Although
+Figures \ref{fig:reduce_discrete} and \ref{fig:reduce_fused}.  Although
 we will not compare overall runtimes of the two benchmarks, we can see that
 the GPU of the fused platform performed better than the GPU of the discrete
 platform relative to their CPUs.  That is, the CPU outperformed the GPU on
