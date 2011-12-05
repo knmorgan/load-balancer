@@ -130,7 +130,7 @@ by Figure~\ref{fig:cpu_arch}.
 In addition, the CPU typically has a deep pipeline to increase throughput of the system.
 Longer and longer pipelines increase the utilization of every element found on the CPU,
 further increasing latency-critical performance.  Performance of this pipeline is in danger
-of being flushed on braching codes, but advanced branch prediction and speculative execution
+of being flushed on branching codes, but advanced branch prediction and speculative execution
 are able to greatly reduce the amount of times where a pipeline flush must occur.  Out-of-order
 execution of instructions in the program also improves performance for single threads on the
 CPU.
@@ -151,10 +151,10 @@ enable tens of thousands of threads to be run on today's GPU architecture with
 very little penalty for context switching.
 
 Each processor on the GPU is very dumb and primitive compared to the processors on the CPU.
-There is no speculative execution, deep pipelines, out-of-order exeuction, or branch prediction
+There is no speculative execution, deep pipelines, out-of-order execution, or branch prediction
 on this device.  Instead, the space saved by not having these features is instead used to
 cram more and more compute cores onto the device.  This strategy of having a large number of
-very simple cores goes back to the orginial architectual decisions for the GPU.  Graphics applications
+very simple cores goes back to the original architectural decisions for the GPU.  Graphics applications
 are relatively straight-forward and require a lot of math and very little complex coding.
 Therefore, for graphics, there is little performance lost for not having these features, whereas
 for GPGPU applications these features can greatly diminish overall kernel performance.
@@ -164,7 +164,7 @@ dispatch unit and operate in lock step.  The threads themselves run on each SM
 in a group, called a warp, typically of 32 threads.  Because of these architectural
 features divergent branching in a warp (caused by if-else clauses) greatly degrade application
 performance.  Unlike the CPU, the GPU is unable to avoid warp-level divergence of
-the different threads, and therefore must always take the penalty of braching.
+the different threads, and therefore must always take the penalty of branching.
 
 The memory architecture for the GPU is very different than that found on the CPU. 
 Instead of a large hierarchy of caches to hide memory latency for single thread
@@ -204,10 +204,10 @@ One of the main benefits of the APU is the elimination of the PCI-e
 bus, which allows for much faster transfer between CPU and GPU.  Daga et al.
 show that the AMD Fusion architecture allows for much faster data transfers
 between CPU and GPU, allowing for an overall improvement in runtime, despite
-reduced compute power on the GPU~\cite{Daga2011}.  The improvment of the 
+reduced compute power on the GPU~\cite{Daga2011}.  The improvement of the 
 data transfer times greatly improves the applicability of the GPU for use
 in general computing paradigms, specifically that of CPU+GPU co-processing.
-Decreasing the data trasnsfer time reduces the penalty associated with migrating
+Decreasing the data transfer time reduces the penalty associated with migrating
 computation to the GPU, and therefore can access the computation of the GPU
 more at will then in discrete GPUs which are bound by the slow access speeds
 of the PCI-e bus.
@@ -231,7 +231,7 @@ The next benchmark, referred henceforth as the ``Vector Add+'' benchmark, is sim
 the VectorAdd benchmark, but it computes 1000 additions before storing the result
 in the output vector.  The motivation behind this benchmark is to reduce memory
 access overhead with more computation.  This benchmark was compiled without optimizations
-so that the additions would not be optmized into a single multiplication.  The data
+so that the additions would not be optimized into a single multiplication.  The data
 dependencies are exactly the same as for the VectorAdd application, so the results for
 data transfer speeds should be equal for both applications, and the difference between
 the two should only be the kernel execution times.
@@ -257,17 +257,17 @@ are given as a mean of ten runs for that particular benchmark, load-balancing sc
 and data size.
 
 \section{The OpenCL Framework}
-For this project, we will use the OpenCL Framework for our kernel lauching.  OpenCL
+For this project, we will use the OpenCL Framework for our kernel launching.  OpenCL
 is an application framework for heterogeneous parallel computing.  It includes an
-API for creating and transferring memory to accleration devices, as well as dynamic
-compilation of application kernels that are run on the acceleators.Using OpenCL 
+API for creating and transferring memory to acceleration devices, as well as dynamic
+compilation of application kernels that are run on the accelerators.Using OpenCL 
 allows us to write the host code only once, while allowing us to run the core 
 application kernel on the CPU, GPU, or both.
 
 In OpenCL each thread is logically mapped to a work-item.  These work-items are grouped into
 workgroups.  These workgroups map to a SM on a discrete GPU.  For instance, these workgroups
 share access to a SMs local memory and can perform a barrier with all the other work-items
-in the workgroup.  In the case of a CPU acclerator, the workgroups still exist, but optimizations
+in the workgroup.  In the case of a CPU accelerator, the workgroups still exist, but optimizations
 such as manual caching via local memory will not be effective.
 
 Devices are grouped into contexts, which contains memory buffers and so on.  A queuing system
@@ -277,11 +277,11 @@ responsible for reading and writing memory buffers.  The queue is in-order, mean
 the queue will wait until previously enqueued items have finished before starting work 
 on more recently queued items.
 
-For our purposes, we decided to use a seperate context for each device, as well as a seperate
-command queue for each context.  We decided to use a seperate context for each device, as it would
-allow for finer-grained control of data transfers and residency. Using a seperate command queue
+For our purposes, we decided to use a separate context for each device, as well as a separate
+command queue for each context.  We decided to use a separate context for each device, as it would
+allow for finer-grained control of data transfers and residency. Using a separate command queue
 for each device will facilitate multiple devices to be used simultaneously, as each command queue
-operates on its own seperate thread.
+operates on its own separate thread.
 
 \section{Load Balancing Schemes}
 A naive implementation of CPU+GPU co-processing will in many cases lead to an imbalance
@@ -291,7 +291,7 @@ a GPU-only solution.  These schemes are illustrated in Figure~\ref{fig:schedulin
 
 The first load balancing scheme that was implemented was a static division of work between
 the CPU and the GPU at a specified ratio.  This ratio was user-defined allowing for best 
-performance after runtime benchmarking (i.e. the precentage of work done on the CPU and GPU).
+performance after runtime benchmarking (i.e. the percentage of work done on the CPU and GPU).
 The cases of CPU-only and GPU-only scheduling are just special cases of this scheduler, of
 the ratios 0 and 1 respectively.
 
@@ -307,7 +307,7 @@ devices to be fully utilized, and application performance will not be optimal.
 To address the issue of a dynamic work load between workgroups for kernels, we also used
 a dynamic load-balancing scheme.  In this scheme the workgroups were grouped into larger
 chunks.  Each device is initially allocated one chunk of work to work on, and as each chunk
-is retired by the device a new chunk is allocated.  Each device is given a seperate hardware
+is retired by the device a new chunk is allocated.  Each device is given a separate hardware
 thread, and the thread will wait until the current chunk is finished, then it will synchronize
 through a shared variable to acquire the next chunk of work for the device.  This process
 will continue until the work queue is out of work. 
@@ -364,8 +364,8 @@ were considered, with the CPU-only case requiring no data movement at all. Unfor
 the static load balancing schemes were able to outperform the CPU-only scheme; all the static times were
 somewhere in between the CPU-only and GPU-only times.  Additionally, the dynamic load balancing
 scheme performed significantly worse than all the other schemes, and more than 100\%
-worse than just the CPU.  The cause for this degredation in performance was likely due to the
-overhead of scheduling threads and communciation between those threads, as well as moving data to
+worse than just the CPU.  The cause for this degradation in performance was likely due to the
+overhead of scheduling threads and communication between those threads, as well as moving data to
 the GPU in small chunks when the GPU showed very poor performance compared to the CPU.
 
 \begin{figure}[t]
@@ -397,7 +397,7 @@ with over a 100x speedup over just the CPU with 16~MB of data.  Because of the v
 amount of computation that needs to be performed, compared to the low amount of data accesses
 required in the kernel (3 data accesses for 1000 additions), the GPU is able to outperform
 the CPU because of its very large throughput for computationally intensive kernels.  The second 
-thing to notice for this benchmark specificially is that the
+thing to notice for this benchmark specifically is that the
 dynamic load balancing drastically outperforms the static load balancing schemes.  This is
 almost certainly because the GPU so drastically outperforms the CPU.  With the dynamic load
 balancing scheme, only small chunks of data are given to the CPU at a time, rather than a
@@ -548,7 +548,7 @@ and the GPU kernel runtime).  If the kernels were truly running in parallel,
 we would expect to see a negative discrepancy between the actual runtime and
 expected runtime.  It was impossible for us to simply time the start and end
 times of the different kernels, because while that information was available
-for each kernel launch, it was kept as device-speciifc times. We could not
+for each kernel launch, it was kept as device-specific times. We could not
 reconcile the two different timing schemes, because of the different clock
 frequencies and the lack of a mapping from time from clock start for either
 device.
