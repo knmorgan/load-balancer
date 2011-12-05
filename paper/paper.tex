@@ -206,6 +206,33 @@ access overhead with more computation.  All numbers reported in the results sect
 are given as a mean of ten runs for that particular benchmark, load-balancing scheme,
 and data size.
 
+\section{The OpenCL Framework}
+For this project, we will use the OpenCL Framework for our kernel lauching.  OpenCL
+is an application framework for heterogeneous parallel computing.  It includes an
+API for creating and transferring memory to accleration devices, as well as dynamic
+compilation of application kernels that are run on the acceleators.Using OpenCL 
+allows us to write the host code only once, while allowing us to run the core 
+application kernel on the CPU, GPU, or both.
+
+In OpenCL each thread is logically mapped to a work-item.  These work-items are grouped into
+workgroups.  These workgroups map to a SM on a discrete GPU.  For instance, these workgroups
+share access to a SMs local memory and can perform a barrier with all the other work-items
+in the workgroup.  In the case of a CPU acclerator, the workgroups still exist, but optimizations
+such as manual caching via local memory will not be effective.
+
+Devices are grouped into contexts, which contains memory buffers and so on.  A queuing system
+is used by OpenCL to facilitate kernel execution.  Kernels are submitted to the queue along with
+the size of each workgroup, as well as number of workgroups to execute.  This queue is also 
+responsible for reading and writing memory buffers.  The queue is in-order, meaning that 
+the queue will wait until previously enqueued items have finished before starting work 
+on more recently queued items.
+
+For our purposes, we decided to use a seperate context for each device, as well as a seperate
+command queue for each context.  We decided to use a seperate context for each device, as it would
+allow for finer-grained control of data transfers and residency. Using a seperate command queue
+for each device will facilitate multiple devices to be used simultaneously, as each command queue
+operates on its own seperate thread.
+
 \section{Load Balancing Schemes}
 A naive implementation of CPU+GPU co-processing will in many cases lead to an imbalance
 of work for either the CPU or GPU.  To deal with this problem we will investigate the
