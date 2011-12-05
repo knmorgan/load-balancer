@@ -122,19 +122,35 @@ the needs for low latency application performance, a series of hierarchical
 caches have been designed to hide memory access costs, the most common cause
 of latency in single-threaded applications on modern architectures.  Each core
 of the CPU typically only runs one or two hardware-enabled threads to reduce
-cache pollution, thus avoiding latency.  An example CPU architecture is given
+cache pollution, thus avoiding latency.  An simplistic example CPU architecture is given
 by Figure~\ref{fig:cpu_arch}.
 
 The use of the Single Instruction Multiple Data (SIMD) paradigm enables increased
 performance on these devices by increasing data throughput for data parallel
-applications.
+applications.  However, optimal performance of these types of instructions often
+involves complex compilation techniques and hand-tuning of the assembly.
 
 \subsection{GPU Architecture}
 The GPU almost acts a foil to the CPU architecture.  Instead of optimizing the
 architecture of the device to increase performance of a single thread, the GPU
-architecture is specifically designed for large throughput performance.  
+architecture is specifically designed for large throughput performance.  Large
+numbers of threads can be easily created an run on a GPU.  Large register files
+enable tens of thousands of threads to be run on today's GPU architecture with
+very little penalty for context switching.
 
-The memory hierarchy for the GPU architecture is given by Figure~\ref{fig:gpu_arch}.
+Groups of proccessing units, Streaming Multiprocessors (SMs), share a single instruction
+dispatch unit and operate in lock step.  The threads themselves run on each SM
+in a group, called a warp, typically of 32 threads.  Because of these architectual
+features divergent branching in a warp (caused by if-else clauses) greatly degrade application
+performance.
+
+The memory architecture for the GPU is very different than that found on the CPU. 
+Instead of a large hierarchy of caches to hide memory latency for single thread
+performance the latecy to memory is instead hidden through aggressive context
+switching.  Newer GPU architectures may contain primative caching schemes.
+Each SM on the GPU also contains a local memory memory space which can accessed 
+at much lower latency .  This memory space is typically used as a user-managed
+cache. The memory hierarchy for the GPU architecture is given by Figure~\ref{fig:gpu_arch}.
 
 \begin{figure}[t]
 \centering
