@@ -174,21 +174,12 @@ for a SIMD engine, the basis for a GPU processor.  The APU has a
 shared memory between the CPU and SIMD engine, in which accesses
 are facilitated through a high-speed memory controller.  The AMD
 Fusion technology is an example of this type of architecture~\cite{AMDFusion}.
-Because of the limited space on the CPU die, the overall performance
-capabilities of the CPU and GPU are often more limited than on a traditional 
-discrete CPU and GPU architecture.
 
 One of the main benefits of the APU is the elimination of the PCI-e
 bus, which allows for much faster transfer between CPU and GPU.  Daga et al.
 show that the AMD Fusion architecture allows for much faster data transfers
 between CPU and GPU, allowing for an overall improvement in runtime, despite
-reduced compute power on the GPU~\cite{Daga2011}.  The improvment of the 
-data transfer times greatly improves the applicability of the GPU for use
-in general computing paradigms, specifically that of CPU+GPU co-processing.
-Decreasing the data trasnsfer time reduces the penalty associated with migrating
-computation to the GPU, and therefore can access the computation of the GPU
-more at will then in discrete GPUs which are bound by the slow access speeds
-of the PCI-e bus.
+reduced compute power on the GPU~\cite{Daga2011}. 
 
 \section{Load Balancing Benchmarks}
 For this paper, three different benchmarks were used to assess the
@@ -296,10 +287,7 @@ not allowing other kernels to execute on open SMs.  This creates and issue where
 size of the work chunks should be considered.  One one hand, larger work chunks can
 provide for better performance for each device, as it will allow more workgroups to
 hide the cost of a long-running workgroup.  However, large chunk sizes can reduce
-the granularity of load-balancing between the devices.  Alternatively, smaller chunk
-sizes alleviates the problem of one device receiving a disproportionate amount of the
-work, but can increase scheduling overhead by increasing contention for the shared
-variable which tracks the remaining workload.
+the granularity of load-balancing between the devices.
 
 \begin{figure}[t]
 \centering
@@ -334,6 +322,12 @@ First, the reduction benchmark was run on the discrete GPU platform with a varie
 different data sizes and load balancing policies, as shown in Figure \ref{fig:reduce_discrete}.
 Interestingly, the CPU outperformed the GPU on this particular benchmark.  This is likely
 due to the GPU not utilizing all of its stream processors during a reduction operation, as
+<<<<<<< HEAD
+discussed previously.  Unfortunately, none of the static load balancing schemes were able
+to outperform just the CPU; all the static times were somewhere in between the CPU-only and
+GPU-only times.  Additionally, the dynamic load balancing scheme performed significantly
+worse than all the other schemes, and more than 100\% worse than just the CPU.
+=======
 discussed previously.  It is also the case that the large amount of synchronization that must
 occur in each iteration of the GPU reduction, and the number of kernel launches required for
 each iteration that is not present in the CPU reduction. In addition, because the CPU had better
@@ -345,6 +339,7 @@ scheme performed significantly worse than all the other schemes, and more than 1
 worse than just the CPU.  The cause for this degredation in performance was likely due to the
 overhead of scheduling threads and communciation between those threads, as well as moving data to
 the GPU in small chunks when the GPU showed very poor performance compared to the CPU.
+>>>>>>> 9db4fb6971bdc9ebc4811547b68aad1e6cfaebc4
 
 \begin{figure}[t]
 \centering
@@ -453,43 +448,32 @@ on the fused platform.  It is also the case that the SIMD engine on the Fusion A
 is slightly more powerful than the discrete GPU that we have used for testing, allowing
 kernel execution times on the APU to be lower than that of the discrete GPU.
 
-\begin{figure}[t]
-\centering
-\includegraphics[width=3.0in]{reduce_static_fused}
-\caption{Reduction Benchmark with Varied Execution Ratio}
-\label{fig:reduce_static_fused}
-\end{figure}
+%\begin{figure}[t]
+%\centering
+%\includegraphics[width=3.0in]{reduce_static_fused}
+%\caption{Reduction Benchmark with Varied Execution Ratio}
+%\label{fig:reduce_static_fused}
+%\end{figure}
 
-\begin{figure}[t]
-\centering
-\includegraphics[width=3.0in]{vector_static_fused}
-\caption{Vector Add Benchmark with Varied Execution Ratio}
-\label{fig:vector_static_fused}
-\end{figure}
+%\begin{figure}[t]
+%\centering
+%\includegraphics[width=3.0in]{vector_static_fused}
+%\caption{Vector Add Benchmark with Varied Execution Ratio}
+%\label{fig:vector_static_fused}
+%\end{figure}
 
-\begin{figure}[t]
-\centering
-\includegraphics[width=3.0in]{vector_plus_static_fused}
-\caption{Vector Add+ Benchmark with Varied Execution Ratio}
-\label{fig:vector_plus_static_fused}
-\end{figure}
+%\begin{figure}[t]
+%\centering
+%\includegraphics[width=3.0in]{vector_plus_static_fused}
+%\caption{Vector Add+ Benchmark with Varied Execution Ratio}
+%\label{fig:vector_plus_static_fused}
+%\end{figure}
 
 %Finally, consider Figures \ref{fig:reduce_static_fused}, \ref{fig:vector_static_fused},
-%and \ref{fig:vector_plus_static_fused}. In each, the runtime for both the CPU and GPU are
+%and \ref{fig:vector_plus_static_fused}. In each, the runtim for both the CPU and GPU are
 %shown with a 16~MB problem size.  Additionally, a variety of static execution ratios are
 %shown between 0.1\% and 99.9\%.  In every benchmark, none of the execution ratios were
 %able to achieve a better time than just the GPU.
-
-Finally, consider Figure \ref{fig:vector_static_fused}, where the overall runtime
-for the static load balancer is compared against both the CPU-only and GPU-only
-runtimes for 0.1\%, 1\%, 10\%, 25\%, 50\%, 75\%, 99\%, and 99.9\% static data
-ratios for the 16~MB vector add benchmark.  Figures \ref{fig:reduce_static_fused}
-and \ref{fig:vector_plus_static_fused} show similar results for the reduction and
-vector add+ benchmarks.  In these benchmarks, the downward trend as more data is
-executed on the GPU becomes more evident.  What's also interesting is that the
-static load balancer actually performs worse than the CPU-only case when only a
-small amount of the data ($\leq$1\%) is executed on the CPU in the reduction and
-vector add benchmarks.
 
 Based on the times shown in the previous figures, it is clear that the
 static load balancing is ineffective at improving the overall efficiency
@@ -690,7 +674,7 @@ typical variability in runtimes due to their infrequency and minute performance 
 
 When analyzing the results, we considered the possibility that the CPU and GPU kernels were
 actually running in serial, which would explain the performance trends we were seeing in our
-static and dynamic load balancing schemes.  An OpenCL profiler was used to find out the times each
+static and dynamic load balancing schemes.  An AMD profiler was used to find out the times each
 kernel took to compute, and the sum of these times was compared to the actual runtime of the
 benchmark.  We found that the actual runtime of the benchmark was typically slightly more than
 the sum of the runtimes of each kernel, which seemed to indicate that the kernels were indeed
