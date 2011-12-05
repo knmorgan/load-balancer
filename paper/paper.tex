@@ -704,6 +704,16 @@ particular benchmark, as giving any significant amount of data to the CPU would 
 performance.  With the dynamic load balancer, the CPU will only compute a few blocks
 of data, rather than 25\% or more with the static load balancer.
 
+If time had permitted it would have been beneficial to analyze the effect of different
+data chunk sizes on the overall performance of the dynamic scheduler, including having
+different data chunk sizes for each device, based on computational power.  We could have
+also included a ratio-based dynamic scheduler which would have pulled a percentage of the
+remaining data from the work-queue instead of a set static amount of data.  This would have
+alleviated the problem of not having enough work to do at the outset of the problem, while
+still retaining fine-grained distribution of data near the end of the queue.  The lack of
+this sort of analysis limits our overall ability to throughly analyze the performance
+of the dynamic scheduler.
+
 When analyzing more finely-grained static execution ratios, we found that, in the case
 where the GPU outperforms the CPU, there is always a downward trend in overall runtime
 as more data is executed on the GPU.  There were a couple sparse instances where a static
