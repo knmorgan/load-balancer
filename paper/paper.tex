@@ -25,13 +25,13 @@
 \begin{abstract}
 Leveraging maximum performance from specialized hardware is one of the
 major problems facing computer scientists today.  General-purpose computing
-on graphics processing units (GPGPU) is a technique that is becoming
+on Graphics Processing Units (GPGPU) is a technique that is becoming
 increasingly popular for handling computations typically performed by the
 CPU.  However, many GPGPU algorithms place the entire workload on the Graphics
-processing unit (GPU) leaving the CPU idle for the duration of the computation.
+Processing Unit (GPU) leaving the CPU idle for the duration of the computation.
 This paper investigates the effect various load-balancing schemes across the CPU
 and GPU have on overall application performance.  Additionally, the discrete and
-fused GPU architectures, and their impact on performance, will be investigated.
+fused GPU architectures, and their impact on performance, has been investigated.
 \end{abstract}
 
 \section{Introduction}
@@ -50,10 +50,11 @@ fused GPU architectures, and their impact on performance, will be investigated.
 \IEEEPARstart{L}{everaging} the maximum performance from specialized hardware is one
 of the major problems facing computer scientists today.  The unique architecture of the
 GPU gives it a place as a massively parallel hardware accelerator.  Programming frameworks
-such as OpenCL allow programmers to utilize the stream processors of the GPU for non-graphics
-data.  However, because of the difficulty in programming for this hardware, most of the
-effort is spent on trying to achieve performance from the GPU, while the CPU is left
-unused.  By also making use of CPU to process a chunk of the data, we can achieve higher
+such as OpenCL and CUDA allow programmers to utilize the stream processors of the GPU for non-graphics
+applications.  However, because of the difficulty in programming for this hardware, most of the
+attention is spent on trying to achieve optimal performance on the GPU to leverage the unique hardware
+capabilites, while the CPU is left
+unused.  By also making use of CPU to process a portion of the overall workload, we are able to achieve higher
 utilization of resources and therefore increase overall program performance.
 
 GPU+CPU co-processing hardly a new idea.  Jimenez et al.~\cite{Jimenez2009} present a
@@ -81,7 +82,8 @@ scheme to require the following time to perform the computation.
 \[\max{\{(n-m)t_g, mt_c}\} + t_d + t_o\]
 Where $m$ is the amount of the workload given to the CPU ($m \leq n$), $t_d$ is the data
 transfer cost, and $t_o$ is any overhead incurrent from synchronization costs of the load
-balancing scheme or otherwise.  The above will be faster than just the GPU iff
+balancing scheme or otherwise.  Note that there is an obvious minimum for this function the
+point where the GPU and CPU workloads are equal.  The above will be faster than just the GPU iff
 $t_g - \max{\{(n-m)t_g, mt_c}\} < t_d + t_o$.
 
 Two different load balancing schemes were implemented for this paper.  The first was a
@@ -131,7 +133,7 @@ In addition, the CPU typically has a deep pipeline to increase throughput of the
 Longer and longer pipelines increase the utilization of every element found on the CPU,
 further increasing latency-critical performance.  Performance of this pipeline is in danger
 of being flushed on branching codes, but advanced branch prediction and speculative execution
-are able to greatly reduce the amount of times where a pipeline flush must occur.  Out-of-order
+are able to greatly reduce the amount of times when a pipeline flush must occur.  Out-of-order
 execution of instructions in the program also improves performance for single threads on the
 CPU.
 
@@ -145,7 +147,7 @@ were really able to process 4 threads at once.
 \subsection{GPU Architecture}
 The GPU almost acts a foil to the CPU architecture.  Instead of optimizing the
 architecture of the device to increase performance of a single thread, the GPU
-architecture is specifically designed for large throughput performance.  Large
+architecture is specifically designed for high-throughput performance.  Large
 numbers of threads can be easily created an run on a GPU.  Large register files
 enable tens of thousands of threads to be run on today's GPU architecture with
 very little penalty for context switching.
@@ -169,7 +171,8 @@ the different threads, and therefore must always take the penalty of branching.
 The memory architecture for the GPU is very different than that found on the CPU. 
 Instead of a large hierarchy of caches to hide memory latency for single thread
 performance the latency to memory is instead hidden through aggressive context
-switching.  Newer GPU architectures may contain privative caching schemes.
+switching.  Newer GPU architectures may contain privative caching schemes, but the majority
+of GPUs still on the commodity graphics market do not have this feature.
 Each SM on the GPU also contains a local memory memory space which can accessed 
 at much lower latency .  This memory space is typically used as a user-managed
 cache. The memory hierarchy for the GPU architecture is given by Figure~\ref{fig:gpu_arch}.
@@ -260,17 +263,17 @@ and data size.
 For this project, we will use the OpenCL Framework for our kernel launching.  OpenCL
 is an application framework for heterogeneous parallel computing.  It includes an
 API for creating and transferring memory to acceleration devices, as well as dynamic
-compilation of application kernels that are run on the accelerators.Using OpenCL 
+compilation of application kernels that are run on the accelerators. Using OpenCL 
 allows us to write the host code only once, while allowing us to run the core 
 application kernel on the CPU, GPU, or both.
 
-In OpenCL each thread is logically mapped to a work-item.  These work-items are grouped into
+In OpenCL each thread is logically mapped to a so-called ``work-item''.  These work-items are grouped into
 workgroups.  These workgroups map to a SM on a discrete GPU.  For instance, these workgroups
 share access to a SMs local memory and can perform a barrier with all the other work-items
 in the workgroup.  In the case of a CPU accelerator, the workgroups still exist, but optimizations
 such as manual caching via local memory will not be effective.
 
-Devices are grouped into contexts, which contains memory buffers and so on.  A queuing system
+Devices are grouped into contexts, which contains memory buffers and device specific information.  A queuing system
 is used by OpenCL to facilitate kernel execution.  Kernels are submitted to the queue along with
 the size of each workgroup, as well as number of workgroups to execute.  This queue is also 
 responsible for reading and writing memory buffers.  The queue is in-order, meaning that 
@@ -278,10 +281,10 @@ the queue will wait until previously enqueued items have finished before startin
 on more recently queued items.
 
 For our purposes, we decided to use a separate context for each device, as well as a separate
-command queue for each context.  We decided to use a separate context for each device, as it would
-allow for finer-grained control of data transfers and residency. Using a separate command queue
+command queue for each context.  Using a separate command queue
 for each device will facilitate multiple devices to be used simultaneously, as each command queue
-operates on its own separate thread.
+operates on its own separate thread. We also decided to use a separate context for each device, as it would
+allow for finer-grained control of data transfers and residency. 
 
 \section{Load Balancing Schemes}
 A naive implementation of CPU+GPU co-processing will in many cases lead to an imbalance
@@ -352,6 +355,7 @@ will be specified.
 \label{fig:reduce_discrete}
 \end{figure}
 
+\subsection{Discrete GPU Performance}
 First, the reduction benchmark was run on the discrete GPU platform with a variety of
 different data sizes and load balancing policies, as shown in Figure \ref{fig:reduce_discrete}.
 Interestingly, the CPU outperformed the GPU on this particular benchmark.  This is likely
@@ -449,6 +453,7 @@ the system.
 \label{fig:vector_plus_fused}
 \end{figure}
 
+\subsection{Fused APU Performance}
 Next, consider Figures \ref{fig:reduce_fused}, \ref{fig:vector_fused}, and
 \ref{fig:vector_plus_fused}. The figures demonstrate a variety of different
 load balancing options for the Reduction, VectorAdd, and VectorAdd+
@@ -502,7 +507,8 @@ kernel execution times on the APU to be lower than that of the discrete GPU.
 %shown between 0.1\% and 99.9\%.  In every benchmark, none of the execution ratios were
 %able to achieve a better time than just the GPU.
 
-Finally, consider Figure \ref{fig:vector_static_fused}, where the overall runtime
+\subsection{Load Balancing Performance}
+Consider Figure \ref{fig:vector_static_fused}, where the overall runtime
 for the static load balancer is compared against both the CPU-only and GPU-only
 runtimes for 0.1\%, 1\%, 10\%, 25\%, 50\%, 75\%, 99\%, and 99.9\% static data
 ratios for the 16~MB vector add benchmark.  Figures \ref{fig:reduce_static_fused}
@@ -712,7 +718,14 @@ remaining data from the work-queue instead of a set static amount of data.  This
 alleviated the problem of not having enough work to do at the outset of the problem, while
 still retaining fine-grained distribution of data near the end of the queue.  The lack of
 this sort of analysis limits our overall ability to throughly analyze the performance
-of the dynamic scheduler.
+of the dynamic scheduler. 
+
+Additionally, the use of only applications which have a static workload per thread limit the
+effectiveness of the dynamic scheduler.  The ability to a priori know the thread workload makes
+the static load-balancing scheme more effective than the dynamic scheme.
+Using a kernel with a varied workload per thread
+would have made it possible for the dynamic scheduler to see improved performance when
+compared to the static mapping of data.
 
 When analyzing more finely-grained static execution ratios, we found that, in the case
 where the GPU outperforms the CPU, there is always a downward trend in overall runtime
