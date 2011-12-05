@@ -183,26 +183,45 @@ reduced compute power on the GPU~\cite{Daga2011}.
 
 \section{Load Balancing Benchmarks}
 For this paper, three different benchmarks were used to assess the
-effectiveness of the load balancer.  The first is a reduction benchmark,
-in which the sum of variably-sized array is computed.  The reduction benchmark
-is unique in that different code is being run on the CPU and the GPU.  The
-reason for this is that the GPU cannot efficiently compute a reduction the way
-a CPU typically would -- due to the relative inefficiency of backward branches
-on the GPU.  A reduction on the GPU is a multi-stage process, in which the
-output of one step is used as the input of the next.  Each steam processor
-computes the reduction of two elements during each iteration, reducing the amount
-of work during each step by a factor of two.  As a result, each step utilizes half
-the stream processors of the previous step.  This continues until the reduction
-operation is only done by a single stream processor.  A natural consequence of
-this algorithm is that not all of the stream processors will be utilized during
-the computation.
+effectiveness of the load balancer.  These benchmarks were chosen to represent
+tasks that would actually be performed on a GPU, and have seen use in already
+existing benchmark suites~\cite{Danalis2010}.  The applications that we have chosen
+for this project are VectorAdd, VectorAdd+, and Reduce.
 
-The next benchmark is a simple vector addition operation that computes the sum
-of two input vectors, and stores the result into an output vector.  The third
-benchmark, referred henceforth as the ``Vector Add+'' benchmark, is similar to
-the Vector Add benchmark, but it computes 1000 additions before storing the result
+The VectorAdd application is a simple vector addition operation that computes the sum
+of two input vectors, and stores the result into an output vector.  This represents the
+vector operation $\vec{C} = \vec{A} + \vec{B}$.  This kernel is naive to parallelize, as
+it exhibits embarrassingly parallel structure.  Each thread being run maps to a single 
+index in the array and computes the output value for that index.  This algorithm is also
+nicely designed for load-balancing because of the lack of data dependencies, reducing 
+the amount of communication to the GPU.
+
+The next benchmark, referred henceforth as the ``Vector Add+'' benchmark, is similar to
+the VectorAdd benchmark, but it computes 1000 additions before storing the result
 in the output vector.  The motivation behind this benchmark is to reduce memory
-access overhead with more computation.  All numbers reported in the results section
+access overhead with more computation.  This benchmark was compiled without optimizations
+so that the additions would not be optmized into a single multiplication.  The data
+dependencies are exactly the same as for the VectorAdd application, so the results for
+data transfer speeds should be equal for both applications, and the difference between
+the two should only be the kernel execution times.
+
+The Reduce application is an application that performs a reduction operation on a
+large array of data.  In this case, the sum of a variably-sized array is computed.
+The Reduce benchmark is unique in that different code is being run on the CPU and 
+the GPU.  The reason for this is that the GPU cannot efficiently compute a reduction
+the way a CPU typically would -- due to the relatively slower cores and much greater
+memory latency.  A optimized reduction on the GPU is a multi-stage process, in which the
+output of one step is used as the input of the next.  Each SM computes the reduction
+of a smaller set of elements from the larger array during each iteration.  This
+requires the use of numerous local atomic operations, as well as local memory to 
+facilitate optimized memory access between threads on an SM.
+This process continues until the reduction operation is only done by a single SM.
+A natural consequence of this algorithm is that not all of the SMs will be utilized during
+the computation.  In addition, inside an iteration all of the streaming processors
+will only be used for the first stage of reduction, greatly reducing utilization on the
+device.
+
+All numbers reported in the results section
 are given as a mean of ten runs for that particular benchmark, load-balancing scheme,
 and data size.
 
