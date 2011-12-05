@@ -237,7 +237,7 @@ operates on its own seperate thread.
 A naive implementation of CPU+GPU co-processing will in many cases lead to an imbalance
 of work for either the CPU or GPU.  To deal with this problem we will investigate the
 use of 2 different load balancing schemes in addition to the performance of a CPU-only or
-a GPU-only solution.  These schemes are illustrated in Figure~/ref{fig:scheduling}
+a GPU-only solution.  These schemes are illustrated in Figure~\ref{fig:scheduling}.
 
 The first load balancing scheme that was implemented was a static division of work between
 the CPU and the GPU at a specified ratio.  This ratio was user-defined allowing for best 
@@ -307,7 +307,6 @@ discussed previously.  Unfortunately, none of the static load balancing schemes 
 to outperform just the CPU; all the static times were somewhere in between the CPU-only and
 GPU-only times.  Additionally, the dynamic load balancing scheme performed significantly
 worse than all the other schemes, and more than 100\% worse than just the CPU.
-100\% worse than just the CPU.
 
 \begin{figure}[t]
 \centering
@@ -474,7 +473,7 @@ of the CPU kernel would include the runtime of the GPU kernel.
 
 With regard to the discrete GPU platform and the fused CPU+GPU platform, it
 seems that the fused platform has some advantages.  For instance, consider 
-Figures \ref{fig:reduction_discrete} and \ref{fig:reduction_fused}.  Although
+Figures \ref{fig:reduce_discrete} and \ref{fig:reduce_fused}.  Although
 we will not compare overall runtimes of the two benchmarks, we can see that
 the GPU of the fused platform performed better than the GPU of the discrete
 platform relative to their CPUs.  That is, the CPU outperformed the GPU on
@@ -609,7 +608,7 @@ were still outperformed by the CPU in this case, so no overall speedup was gaine
 second exception was the vector add+ benchmark on the discrete GPU platform, where the
 dynamic load balancer actually outperformed the tested static load balancing schemes.
 However, this was due to the vast disparity in the GPU and CPU runtimes for this
-particular benchmark; giving any significant amount of data to the CPU would hurt
+particular benchmark, as giving any significant amount of data to the CPU would hurt
 performance.  With the dynamic load balancer, the CPU will only compute a few blocks
 of data, rather than 25\% or more with the static load balancer.
 
@@ -633,10 +632,10 @@ time to complete.  Based on the disparity of runtimes between the CPU-only and G
 results, the optimal runtimes ranged from a 2\% to nearly a 45\% speedup over just the GPU
 alone.  Unfortunately, none of these theoretical results were supported in practice.  It seems
 to be a limitation of OpenCL that it will not run kernels on different devices in parallel,
-which effectively renders our load balancing schemes pointless.
+which effectively renders our current load balancing schemes pointless.
 
 Additionally, it seems that a fused CPU+GPU architecture may provide some performance benefits
-over just a discrete GPU architecture.  Our results shows that the GPU outperformed the CPU on
+over just a discrete GPU architecture.  Our results show that the GPU outperformed the CPU on
 the fused platform's reduction benchmark, but this was not the case for the discrete GPU platform.
 However, as the CPUs and GPUs differed significantly between the two testing environments, we
 cannot say definitively that one architecture will always be better than the other.
