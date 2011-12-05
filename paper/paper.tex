@@ -114,7 +114,9 @@ to receive a disproportionate amount of work.
 \section{Architecture Overview}
 In this section we discuss the different architectures of the experimental
 machines under test.  We will discuss CPU, GPU, and APU architectures in
-terms of major differences that affect the performance of the device.  
+terms of major differences that affect the performance of the device.  We also
+briefly discuss the impacts of different architectures on the implementations
+of a CPU+GPU co-processing system.
 
 \subsection{CPU Architecture}
 The CPU architecture is designed as a low latency architecture.  To facilitate
@@ -125,10 +127,20 @@ of the CPU typically only runs one or two hardware-enabled threads to reduce
 cache pollution, thus avoiding latency.  An simplistic example CPU architecture is given
 by Figure~\ref{fig:cpu_arch}.
 
+In addition, the CPU typically has a deep pipeline to increase throughput of the system.
+Longer and longer pipelines increase the utilization of every element found on the CPU,
+further increasing latency-critical performance.  Performance of this pipeline is in danger
+of being flushed on braching codes, but advanced branch prediction and speculative execution
+are able to greatly reduce the amount of times where a pipeline flush must occur.  Out-of-order
+execution of instructions in the program also improves performance for single threads on the
+CPU.
+
 The use of the Single Instruction Multiple Data (SIMD) paradigm enables increased
 performance on these devices by increasing data throughput for data parallel
 applications.  However, optimal performance of these types of instructions often
-involves complex compilation techniques and hand-tuning of the assembly.
+involves complex compilation techniques and hand-tuning of the assembly.  Most applications
+are not able to see as substantial a speedup from this process as they would if the application
+were really able to process 4 threads at once.
 
 \subsection{GPU Architecture}
 The GPU almost acts a foil to the CPU architecture.  Instead of optimizing the
@@ -138,11 +150,21 @@ numbers of threads can be easily created an run on a GPU.  Large register files
 enable tens of thousands of threads to be run on today's GPU architecture with
 very little penalty for context switching.
 
+Each processor on the GPU is very dumb and primitive compared to the processors on the CPU.
+There is no speculative execution, deep pipelines, out-of-order exeuction, or branch prediction
+on this device.  Instead, the space saved by not having these features is instead used to
+cram more and more compute cores onto the device.  This strategy of having a large number of
+very simple cores goes back to the orginial architectual decisions for the GPU.  Graphics applications
+are relatively straight-forward and require a lot of math and very little complex coding.
+Therefore, for graphics, there is little performance lost for not having these features, whereas
+for GPGPU applications these features can greatly diminish overall kernel performance.
+
 Groups of processing units, Streaming Multiprocessors (SMs), share a single instruction
 dispatch unit and operate in lock step.  The threads themselves run on each SM
 in a group, called a warp, typically of 32 threads.  Because of these architectural
 features divergent branching in a warp (caused by if-else clauses) greatly degrade application
-performance.
+performance.  Unlike the CPU, the GPU is unable to avoid warp-level divergence of
+the different threads, and therefore must always take the penalty of braching.
 
 The memory architecture for the GPU is very different than that found on the CPU. 
 Instead of a large hierarchy of caches to hide memory latency for single thread
@@ -174,12 +196,21 @@ for a SIMD engine, the basis for a GPU processor.  The APU has a
 shared memory between the CPU and SIMD engine, in which accesses
 are facilitated through a high-speed memory controller.  The AMD
 Fusion technology is an example of this type of architecture~\cite{AMDFusion}.
+Because of the limited space on the CPU die, the overall performance
+capabilities of the CPU and GPU are often more limited than on a traditional 
+discrete CPU and GPU architecture.
 
 One of the main benefits of the APU is the elimination of the PCI-e
 bus, which allows for much faster transfer between CPU and GPU.  Daga et al.
 show that the AMD Fusion architecture allows for much faster data transfers
 between CPU and GPU, allowing for an overall improvement in runtime, despite
-reduced compute power on the GPU~\cite{Daga2011}. 
+reduced compute power on the GPU~\cite{Daga2011}.  The improvment of the 
+data transfer times greatly improves the applicability of the GPU for use
+in general computing paradigms, specifically that of CPU+GPU co-processing.
+Decreasing the data trasnsfer time reduces the penalty associated with migrating
+computation to the GPU, and therefore can access the computation of the GPU
+more at will then in discrete GPUs which are bound by the slow access speeds
+of the PCI-e bus.
 
 \section{Load Balancing Benchmarks}
 For this paper, three different benchmarks were used to assess the
@@ -681,7 +712,7 @@ typical variability in runtimes due to their infrequency and minute performance 
 
 When analyzing the results, we considered the possibility that the CPU and GPU kernels were
 actually running in serial, which would explain the performance trends we were seeing in our
-static and dynamic load balancing schemes.  An AMD profiler was used to find out the times each
+static and dynamic load balancing schemes.  An OpenCL profiler was used to find out the times each
 kernel took to compute, and the sum of these times was compared to the actual runtime of the
 benchmark.  We found that the actual runtime of the benchmark was typically slightly more than
 the sum of the runtimes of each kernel, which seemed to indicate that the kernels were indeed
